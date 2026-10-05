@@ -1205,5 +1205,30 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
 </script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js', {
+      scope: './'
+    })
+    .then(registration => {
+      console.log(
+        'Mon Budget - Service Worker enregistré :',
+        registration.scope
+      );
+    })
+    .catch(error => {
+      console.error(
+        'Mon Budget - Erreur Service Worker :',
+        error
+      );
+    });
+  });
+}
+</script>
+
+
+
 </body>
 </html>
