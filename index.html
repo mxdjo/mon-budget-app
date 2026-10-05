@@ -466,6 +466,7 @@ if(!DATA.transferts) DATA.transferts=[];
 function fmt(n){ return Number(n||0).toLocaleString('fr-FR'); }
 function fmtD(n){ return (n>=0?'+':'')+fmt(n); }
 function now(){ return new Date(); }
+function todayInfo(){ const n=new Date(); return {date:n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'),year:n.getFullYear(),month:n.getMonth()}; }
 function curYear(){ return now().getFullYear(); }
 function curMonth(){ return now().getMonth(); }
 
@@ -509,12 +510,19 @@ function renderDashboard(){
   // Budget total = catégories seulement (pas clés __goal/__dette)
   const totalBudget=Object.entries(budgets).filter(([k])=>!k.startsWith('__')).reduce((s,[,v])=>s+v,0);
 
+  const epMois=[]; DATA.goals.forEach(g=>(g.history||[]).forEach(h=>{ if(h.year===year&&h.month===month) epMois.push(h); }));
+  const dtMois=[]; DATA.dettes.forEach(d=>(d.paiements||[]).forEach(h=>{ if(h.year===year&&h.month===month) dtMois.push(h); }));
+  const totalEp=epMois.reduce((s,h)=>s+h.amount,0);
+  const totalDt=dtMois.reduce((s,h)=>s+h.amount,0);
+
   const score=totalBudget>0?Math.max(0,Math.round((1-totalDep/totalBudget)*100)):null;
   const sc=score===null?'':score>60?'text-success':score>20?'text-warning':'text-danger';
   document.getElementById('dash-metrics').innerHTML=`
     <div class="metric"><div class="metric-label">Total dépenses</div><div class="metric-value text-danger">${fmt(totalDep)} F</div><div class="metric-sub">${deps.length} opération(s)</div></div>
     <div class="metric"><div class="metric-label">Total entrées</div><div class="metric-value text-success">${fmt(totalRev)} F</div><div class="metric-sub">${revs.length} opération(s)</div></div>
     <div class="metric"><div class="metric-label">Solde du mois</div><div class="metric-value ${solde>=0?'text-success':'text-danger'}">${fmtD(solde)} F</div></div>
+    ${(DATA.goals.length||totalEp)?`<div class="metric"><div class="metric-label">Épargne projet</div><div class="metric-value" style="color:#378ADD;">${fmt(totalEp)} F</div><div class="metric-sub">${epMois.length} versement(s)</div></div>`:''}
+    ${(DATA.dettes.length||totalDt)?`<div class="metric"><div class="metric-label">Dette remboursée</div><div class="metric-value">${fmt(totalDt)} F</div><div class="metric-sub">${dtMois.length} paiement(s)</div></div>`:''}
     <div class="metric" style="${totalBudget>totalRev?'border-color:var(--danger);background:var(--danger-light);':''}"><div class="metric-label">Budget prévu</div><div class="metric-value ${totalBudget>totalRev?'text-danger':''}">${fmt(totalBudget)} F</div>${totalBudget>totalRev?`<div class="metric-sub text-danger">⚠ Dépasse tes entrées de ${fmt(totalBudget-totalRev)} F</div>`:''}</div>
     ${score!==null?`<div class="metric"><div class="metric-label">Santé financière</div><div class="metric-value ${sc}">${score}%</div><div class="metric-sub">${score>60?'✓ Bonne gestion':score>20?'⚠ Attention':'✗ Dépassement'}</div></div>`:''}
   `;
@@ -900,6 +908,8 @@ function alimenterGoal(id){
   const v=+prompt('Montant à ajouter (FCFA) :');
   if(!v||v<=0) return;
   g.saved=(g.saved||0)+v;
+  if(!g.history) g.history=[];
+  g.history.push(Object.assign(todayInfo(),{amount:v}));
   saveData(); renderGoals();
 }
 function deleteGoal(id){
@@ -1013,7 +1023,10 @@ function confirmerPaiement(){
   const v=+document.getElementById('payer-montant').value;
   if(!v||v<=0) return;
   const d=DATA.dettes.find(d=>d.id===payDetteId); if(!d) return;
-  d.rembourse=Math.min(d.montant,(d.rembourse||0)+v);
+  const avant=d.rembourse||0;
+  d.rembourse=Math.min(d.montant,avant+v);
+  if(!d.paiements) d.paiements=[];
+  d.paiements.push(Object.assign(todayInfo(),{amount:d.rembourse-avant}));
   saveData(); hidePayer(); renderDettes();
 }
 function deleteDette(id){
