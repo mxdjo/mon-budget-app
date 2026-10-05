@@ -447,17 +447,9 @@ let editGoalId=null, editDetteId=null, payDetteId=null;
 function loadData(){
   try{ const s=localStorage.getItem('mon_budget_v2'); if(s) return JSON.parse(s); }catch(e){}
   return {
-    depenses:[
-      {id:1,date:'2025-01-15',month:0,year:2025,label:'Ménagère',amount:8000,cat:'Intendance',wallet:'Cash'},
-      {id:2,date:'2025-01-20',month:0,year:2025,label:'Carburant',amount:15000,cat:'Transport',wallet:'Cash'},
-      {id:3,date:'2025-01-08',month:0,year:2025,label:'Recharge MTN',amount:2000,cat:'Communication',wallet:'MTN Money'},
-    ],
-    revenus:[
-      {id:10,date:'2025-01-01',month:0,year:2025,label:'Salaire Janvier',amount:250000,cat:'Salaire',wallet:'Banque'},
-    ],
-    budgets:{
-      '2025-0':{Transport:30000,Intendance:15000,Communication:5000},
-    },
+    depenses:[],
+    revenus:[],
+    budgets:{},
     goals:[],
     dettes:[],
     transferts:[],
