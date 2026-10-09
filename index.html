@@ -617,8 +617,7 @@ function renderDashboard(){
   if(ag.length){
     bars+=`<div style="font-size:11px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin:10px 0 7px;">Épargne objectifs</div>`;
     ag.forEach(g=>{
-      const ml=Math.max(1,(new Date(g.deadline).getFullYear()-year)*12+(new Date(g.deadline).getMonth()-month));
-      const pm2=Math.ceil(Math.max(0,g.amount-(g.saved||0))/ml);
+      const pm2=goalPerMonth(g,year,month);
       const pct=Math.min(100,Math.round((g.saved||0)/g.amount*100));
       bars+=`<div class="progress-wrap"><div class="progress-header"><span>${goalIcon(g.cat,18)} ${g.name}</span><span style="color:var(--text-muted);">${fmt(g.saved||0)} / ${fmt(g.amount)} F — ${fmt(pm2)} F ce mois</span></div><div class="progress-bar-bg"><div class="progress-bar" style="width:${pct}%;background:#378ADD;"></div></div></div>`;
     });
@@ -801,17 +800,25 @@ function renderHistory(){
 
 // ---- BUDGET ----
 function detteTranche(d,year,month){
-  const restant=Math.max(0,d.montant-(d.rembourse||0));
-  if(restant<=0) return 0;
-  if(!d.echeance) return d.tranche||0;
   if(year===undefined){const n=new Date();year=n.getFullYear();month=n.getMonth();}
+  const restantAvant=Math.max(0,d.montant-Math.max(0,(d.rembourse||0)-versesDepuis(d.paiements,year,month)));
+  if(restantAvant<=0) return 0;
+  if(!d.echeance) return d.tranche||0;
   const e=new Date(d.echeance);
   const ml=Math.max(1,(e.getFullYear()-year)*12+(e.getMonth()-month));
-  return Math.ceil(restant/ml);
+  return Math.ceil(restantAvant/ml);
 }
+function versesDepuis(list,year,month){
+  return (list||[]).filter(h=>h.year>year||(h.year===year&&h.month>=month)).reduce((s,h)=>s+h.amount,0);
+}
+// Montant à mettre de côté pour le mois (year, month) : calculé sur ce qui était épargné
+// AVANT ce mois, donc il ne baisse pas quand on alimente l'objectif pendant le mois.
 function goalPerMonth(g,year,month){
+  if(year===undefined){const n=new Date();year=n.getFullYear();month=n.getMonth();}
   const ml=Math.max(1,(new Date(g.deadline).getFullYear()-year)*12+(new Date(g.deadline).getMonth()-month));
-  return Math.max(0,g.amount-(g.saved||0))>0?Math.ceil(Math.max(0,g.amount-(g.saved||0))/ml):0;
+  const avant=Math.max(0,(g.saved||0)-versesDepuis(g.history,year,month));
+  const rest=Math.max(0,g.amount-avant);
+  return rest>0?Math.ceil(rest/ml):0;
 }
 function renderBudget(){
   const month=+document.getElementById('bgt-month').value;
@@ -976,7 +983,8 @@ function renderGoals(){
     const dl=new Date(g.deadline);
     const ml=Math.max(0,(dl.getFullYear()-today.getFullYear())*12+(dl.getMonth()-today.getMonth()));
     const rem=Math.max(0,g.amount-(g.saved||0));
-    const pm=ml>0?Math.ceil(rem/ml):rem;
+    const pm=goalPerMonth(g,today.getFullYear(),today.getMonth());
+    const verseMois=(g.history||[]).filter(h=>h.year===today.getFullYear()&&h.month===today.getMonth()).reduce((s,h)=>s+h.amount,0);
     const pct=Math.min(100,Math.round((g.saved||0)/g.amount*100));
     const over=dl<today&&rem>0;
     const ok=pct>=100;
@@ -992,7 +1000,7 @@ function renderGoals(){
       <div class="progress-bar-bg" style="margin-bottom:6px;"><div class="progress-bar ${ok?'progress-ok':over?'progress-danger':'progress-ok'}" style="width:${pct}%;"></div></div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:10px;">
         <span>${pct}% atteint</span>
-        ${!ok&&!over?`<span>→ <strong style="color:var(--text);">${fmt(pm)} F/mois</strong></span>`:''}
+        ${!ok&&!over?`<span>→ <strong style="color:var(--text);">${fmt(pm)} F/mois</strong>${verseMois?` <span style="color:${verseMois>=pm?'var(--success)':'var(--text-muted)'};">· versé ce mois : ${fmt(verseMois)} F${verseMois>=pm?' ✓':''}</span>`:''}</span>`:''}
       </div>
       <div style="display:flex;gap:6px;">
         ${!ok?`<button class="btn btn-primary btn-sm" onclick="alimenterGoal(${g.id})">+ Alimenter</button>`:''}
@@ -1002,19 +1010,14 @@ function renderGoals(){
     </div>`;
   }).join('');
   document.getElementById('goals-list').innerHTML=cards;
-  const totalPM=DATA.goals.filter(g=>{
-    const dl=new Date(g.deadline);
-    const ml=(dl.getFullYear()-today.getFullYear())*12+(dl.getMonth()-today.getMonth());
-    return ml>0&&(g.saved||0)<g.amount;
-  }).reduce((s,g)=>{
-    const dl=new Date(g.deadline);
-    const ml=(dl.getFullYear()-today.getFullYear())*12+(dl.getMonth()-today.getMonth());
-    return s+Math.ceil(Math.max(0,g.amount-(g.saved||0))/ml);
-  },0);
+  const debutMois=new Date(today.getFullYear(),today.getMonth(),1);
+  const actifs=DATA.goals.filter(g=>new Date(g.deadline)>=debutMois&&(g.saved||0)<g.amount);
+  const totalPM=actifs.reduce((s,g)=>s+goalPerMonth(g,today.getFullYear(),today.getMonth()),0);
+  const verseTotal=actifs.reduce((s,g)=>s+(g.history||[]).filter(h=>h.year===today.getFullYear()&&h.month===today.getMonth()).reduce((x,h)=>x+h.amount,0),0);
   document.getElementById('goals-summary').innerHTML=totalPM>0?`
     <div class="card" style="background:var(--primary-light);border-color:var(--primary);margin-top:0;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div><div style="font-weight:600;color:var(--primary-dark);">Total à mettre de côté ce mois</div><div style="font-size:12px;color:var(--text-muted);">tous objectifs actifs combinés</div></div>
+        <div><div style="font-weight:600;color:var(--primary-dark);">Total à mettre de côté ce mois</div><div style="font-size:12px;color:var(--text-muted);">tous objectifs actifs combinés${verseTotal?' — déjà versé : '+fmt(verseTotal)+' F':''}</div></div>
         <div style="font-size:22px;font-weight:700;color:var(--primary);">${fmt(totalPM)} F</div>
       </div>
     </div>`:'';
