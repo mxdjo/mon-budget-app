@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mon Budget</title>
 <meta name="theme-color" content="#1D9E75">
-<link rel="manifest" href="./manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -142,11 +142,22 @@ tr:hover td{background:var(--surface2);}
 </div>
 
 <!-- MODAL PAYER TRANCHE -->
+<div id="alim-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:1.5rem;width:380px;max-width:95vw;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:1rem;"><b id="alim-title">Alimenter l'objectif</b><button onclick="hideAlim()" style="background:none;border:none;cursor:pointer;font-size:18px;">✕</button></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Montant à mettre de côté (FCFA)</label><input type="number" id="alim-amount" min="1" placeholder="0"></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Wallet d'où l'argent est sorti</label><select id="alim-wallet"></select></div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;">Ce montant sera enregistré comme une dépense « Épargne » et débité de ce wallet.</div>
+    <div style="display:flex;gap:8px;"><button class="btn btn-primary" onclick="confirmerAlim()" style="flex:1;">✓ Enregistrer</button><button class="btn btn-secondary" onclick="hideAlim()">Annuler</button></div>
+  </div>
+</div>
 <div id="payer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
   <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:1.5rem;width:340px;max-width:95vw;">
     <div style="font-weight:600;margin-bottom:.5rem;">Payer une tranche</div>
     <div id="payer-info" style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;"></div>
-    <div class="form-group" style="margin-bottom:1rem;"><label>Montant (FCFA)</label><input type="number" id="payer-montant" min="1"></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Montant (FCFA)</label><input type="number" id="payer-montant" min="1"></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Wallet d'où l'argent est sorti</label><select id="payer-wallet"></select></div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;">Ce paiement sera enregistré comme une dépense « Dettes » et débité de ce wallet.</div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-primary" style="flex:1;" onclick="confirmerPaiement()">✓ Confirmer</button>
       <button class="btn btn-secondary" onclick="hidePayer()">Annuler</button>
@@ -205,7 +216,7 @@ tr:hover td{background:var(--surface2);}
         <div class="form-group"><label>Montant (FCFA)</label><input type="number" id="dep-amount" placeholder="0" min="0"></div>
         <div class="form-group"><label>Catégorie</label>
           <select id="dep-cat">
-            <option>Alimentation</option><option>Transport</option><option>Supermarché</option><option>Intendance</option><option>Santé</option><option>Communication</option><option>Loisirs</option><option>Equipements</option><option>Charges récurrentes</option><option>Multimédia</option><option>Vêtements</option><option>Entretien matériel</option><option>Aides et prêts</option><option>Offrandes religieuses</option><option>Produits bancaires</option><option>Logement</option><option>Beauté et soins</option><option>Bien-être</option><option>Education</option><option>Scolarité</option><option>Sécurité</option><option>Famille</option><option>Conjoint</option><option>Autres dons</option><option>Épargne</option><option>Autres charges</option>
+            <option>Alimentation</option><option>Transport</option><option>Supermarché</option><option>Intendance</option><option>Santé</option><option>Communication</option><option>Loisirs</option><option>Equipements</option><option>Charges récurrentes</option><option>Multimédia</option><option>Vêtements</option><option>Entretien matériel</option><option>Aides et prêts</option><option>Offrandes religieuses</option><option>Produits bancaires</option><option>Logement</option><option>Beauté et soins</option><option>Bien-être</option><option>Education</option><option>Scolarité</option><option>Sécurité</option><option>Famille</option><option>Conjoint</option><option>Autres dons</option><option>Épargne</option><option>Dettes</option><option>Autres charges</option>
           </select>
         </div>
       </div>
@@ -362,7 +373,7 @@ tr:hover td{background:var(--surface2);}
       <div class="form-group"><label>Déjà remboursé (FCFA)</label><input type="number" id="d-remb" min="0" value="0"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Tranche mensuelle (FCFA)</label><input type="number" id="d-tranche" min="0"></div>
+      <div class="form-group"><label>Date d'échéance (fin du remboursement)</label><input type="date" id="d-echeance"><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">La tranche mensuelle est calculée automatiquement.</div></div>
       <div class="form-group"><label>Date de début</label><input type="date" id="d-date"></div>
     </div>
     <div style="display:flex;gap:8px;margin-top:4px;">
@@ -389,7 +400,7 @@ tr:hover td{background:var(--surface2);}
 <script>
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MONTHS_S = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
-const CATS_DEP = ['Alimentation','Transport','Supermarché','Intendance','Santé','Communication','Loisirs','Equipements','Charges récurrentes','Multimédia','Vêtements','Entretien matériel','Aides et prêts','Offrandes religieuses','Produits bancaires','Logement','Beauté et soins','Bien-être','Education','Scolarité','Sécurité','Famille','Conjoint','Autres dons','Épargne','Autres charges'];
+const CATS_DEP = ['Alimentation','Transport','Supermarché','Intendance','Santé','Communication','Loisirs','Equipements','Charges récurrentes','Multimédia','Vêtements','Entretien matériel','Aides et prêts','Offrandes religieuses','Produits bancaires','Logement','Beauté et soins','Bien-être','Education','Scolarité','Sécurité','Famille','Conjoint','Autres dons','Épargne','Dettes','Autres charges'];
 const WALLETS = {Cash:'💵',Wave:'🌊','Orange Money':'🟠','MTN Money':'💛','Moov Money':'🔵',Banque:'🏦',Djamo:'💳',Autre:'💼'};
 const DESC_CATS = {
   "Alimentation":"Restaurant, repas de midi ou dîner.",
@@ -417,6 +428,7 @@ const DESC_CATS = {
   "Conjoint":"Dépenses faites pour ton conjoint ou ta conjointe.",
   "Autres dons":"Dons ponctuels qui ne sont ni des offrandes religieuses ni de l'aide à la famille.",
   "Épargne":"Argent mis de côté chaque mois, en dehors des produits bancaires et des objectifs d'épargne.",
+  "Dettes":"Remboursement de dettes : argent rendu à une personne ou à une structure à qui tu dois de l'argent.",
   "Autres charges":"Non répertorié, imprévus."
 };
 const EMOJI_GOAL = {Voyage:'✈️',Epargne:'💰',Projet:'🎯',Autre:'🎯'};
@@ -542,7 +554,7 @@ function renderDashboard(){
   const alerts=[];
   CATS_DEP.forEach(cat=>{
     const b=budgets[cat]||0; if(!b) return;
-    const spent=deps.filter(d=>d.cat===cat).reduce((s,d)=>s+d.amount,0);
+    const spent=deps.filter(d=>d.cat===cat&&!d.goalId&&!d.detteId).reduce((s,d)=>s+d.amount,0);
     if(spent>=b) alerts.push({cat,spent,b,over:spent>b});
   });
   document.getElementById('dash-alerts').innerHTML=alerts.map(a=>
@@ -595,7 +607,7 @@ function renderDashboard(){
   let bars='';
   CATS_DEP.forEach(cat=>{
     const b=budgets[cat]||0; if(!b) return;
-    const spent=deps.filter(d=>d.cat===cat).reduce((s,d)=>s+d.amount,0);
+    const spent=deps.filter(d=>d.cat===cat&&!d.goalId&&!d.detteId).reduce((s,d)=>s+d.amount,0);
     const pct=Math.min(100,Math.round(spent/b*100));
     const cls=pct>=100?'progress-danger':pct>=80?'progress-warn':'progress-ok';
     bars+=`<div class="progress-wrap"><div class="progress-header"><span>${cat} ${pct>=100?'🔴':pct>=80?'🟡':''}</span><span style="color:var(--text-muted);">${fmt(spent)} / ${fmt(b)} F (${pct}%)</span></div><div class="progress-bar-bg"><div class="progress-bar ${cls}" style="width:${pct}%;"></div></div></div>`;
@@ -618,7 +630,7 @@ function renderDashboard(){
     da.forEach(d=>{
       const restant=d.montant-(d.rembourse||0);
       const pct=Math.min(100,Math.round((d.rembourse||0)/d.montant*100));
-      bars+=`<div class="progress-wrap"><div class="progress-header"><span>🤝 ${d.creancier}</span><span style="color:var(--text-muted);">Restant ${fmt(restant)} F — tranche ${fmt(d.tranche)} F</span></div><div class="progress-bar-bg"><div class="progress-bar" style="width:${pct}%;background:var(--danger);"></div></div></div>`;
+      bars+=`<div class="progress-wrap"><div class="progress-header"><span>🤝 ${d.creancier}</span><span style="color:var(--text-muted);">Restant ${fmt(restant)} F — tranche ${fmt(detteTranche(d,year,month))} F</span></div><div class="progress-bar-bg"><div class="progress-bar" style="width:${pct}%;background:var(--danger);"></div></div></div>`;
     });
   }
   document.getElementById('budget-bars').innerHTML=bars||'<div style="color:var(--text-muted);font-size:13px;">Aucun budget défini pour ce mois. Allez dans l\'onglet Budget.</div>';
@@ -724,7 +736,18 @@ function clearRev(){
 }
 function deleteEntry(type,id){
   if(!confirm('Supprimer ?')) return;
-  if(type==='dep') DATA.depenses=DATA.depenses.filter(x=>x.id!==id);
+  if(type==='dep'){
+    const dep=DATA.depenses.find(x=>x.id===id);
+    if(dep&&dep.detteId){
+      const dt=DATA.dettes.find(x=>x.id===dep.detteId);
+      if(dt){ dt.rembourse=Math.max(0,(dt.rembourse||0)-dep.amount); dt.paiements=(dt.paiements||[]).filter(h=>h.depId!==id); }
+    }
+    if(dep&&dep.goalId){
+      const g=DATA.goals.find(x=>x.id===dep.goalId);
+      if(g){ g.saved=Math.max(0,(g.saved||0)-dep.amount); g.history=(g.history||[]).filter(h=>h.depId!==id); }
+    }
+    DATA.depenses=DATA.depenses.filter(x=>x.id!==id);
+  }
   else if(type==='rev') DATA.revenus=DATA.revenus.filter(x=>x.id!==id);
   saveData(); renderHistory();
 }
@@ -777,6 +800,15 @@ function renderHistory(){
 }
 
 // ---- BUDGET ----
+function detteTranche(d,year,month){
+  const restant=Math.max(0,d.montant-(d.rembourse||0));
+  if(restant<=0) return 0;
+  if(!d.echeance) return d.tranche||0;
+  if(year===undefined){const n=new Date();year=n.getFullYear();month=n.getMonth();}
+  const e=new Date(d.echeance);
+  const ml=Math.max(1,(e.getFullYear()-year)*12+(e.getMonth()-month));
+  return Math.ceil(restant/ml);
+}
 function goalPerMonth(g,year,month){
   const ml=Math.max(1,(new Date(g.deadline).getFullYear()-year)*12+(new Date(g.deadline).getMonth()-month));
   return Math.max(0,g.amount-(g.saved||0))>0?Math.ceil(Math.max(0,g.amount-(g.saved||0))/ml):0;
@@ -790,7 +822,7 @@ function renderBudget(){
 
   const rows=CATS_DEP.map(cat=>{
     const b=budgets[cat]||0;
-    const spent=deps.filter(d=>d.cat===cat).reduce((s,d)=>s+d.amount,0);
+    const spent=deps.filter(d=>d.cat===cat&&!d.goalId&&!d.detteId).reduce((s,d)=>s+d.amount,0);
     const ecart=b-spent;
     return `<tr><td>${cat}</td>
       <td><input type="number" value="${b||''}" placeholder="0" min="0" style="width:120px;text-align:right;" onchange="setBudget('${key}','${cat}',this.value)"></td>
@@ -803,33 +835,35 @@ function renderBudget(){
     const sug=goalPerMonth(g,year,month);
     const val=budgets['__goal_'+g.id]!==undefined?budgets['__goal_'+g.id]:sug;
     const ml=Math.max(1,(new Date(g.deadline).getFullYear()-year)*12+(new Date(g.deadline).getMonth()-month));
+    const spentG=deps.filter(d=>d.goalId===g.id).reduce((s,d)=>s+d.amount,0);
     return `<tr style="background:var(--primary-light);">
       <td>${goalIcon(g.cat,18)} <strong>${g.name}</strong><div style="font-size:11px;color:var(--text-muted);">Objectif ${fmt(g.amount)} F — ${fmt(g.saved||0)} F mis de côté — ${ml} mois restants</div></td>
       <td><input type="number" value="${val||''}" placeholder="${sug}" min="0" style="width:120px;text-align:right;" onchange="setBudget('${key}','__goal_${g.id}',this.value)"><div style="font-size:11px;color:var(--text-muted);">Suggéré : ${fmt(sug)} F/mois</div></td>
-      <td class="text-right" style="color:var(--text-muted);">—</td>
-      <td class="text-right"><a href="#" onclick="showPage('objectifs',null);return false;" style="font-size:12px;color:var(--primary);">Voir</a></td></tr>`;
+      <td class="text-right font-mono">${fmt(spentG)}</td>
+      <td class="text-right font-mono ${val-spentG>=0?'text-success':'text-danger'}">${val?fmtD(val-spentG):'-'}<div><a href="#" onclick="showPage('objectifs',null);return false;" style="font-size:12px;color:var(--primary);font-family:inherit;">Voir</a></div></td></tr>`;
   }).join('');
 
   const da=DATA.dettes.filter(d=>(d.montant-(d.rembourse||0))>0);
   const detteRows=da.map(d=>{
     const restant=d.montant-(d.rembourse||0);
-    const val=budgets['__dette_'+d.id]!==undefined?budgets['__dette_'+d.id]:d.tranche;
+    const val=budgets['__dette_'+d.id]!==undefined?budgets['__dette_'+d.id]:detteTranche(d,year,month);
+    const spentD=deps.filter(x=>x.detteId===d.id).reduce((s,x)=>s+x.amount,0);
     return `<tr style="background:var(--danger-light);">
       <td>🤝 <strong>${d.creancier}</strong>${d.motif?`<div style="font-size:11px;color:var(--text-muted);">${d.motif}</div>`:''}<div style="font-size:11px;color:var(--text-muted);">Restant : ${fmt(restant)} F</div></td>
-      <td><input type="number" value="${val||''}" placeholder="${d.tranche}" min="0" style="width:120px;text-align:right;" onchange="setBudget('${key}','__dette_${d.id}',this.value)"><div style="font-size:11px;color:var(--text-muted);">Tranche : ${fmt(d.tranche)} F/mois</div></td>
-      <td class="text-right" style="color:var(--text-muted);">—</td>
-      <td class="text-right"><a href="#" onclick="showPage('dettes',null);return false;" style="font-size:12px;color:var(--danger);">Voir</a></td></tr>`;
+      <td><input type="number" value="${val||''}" placeholder="${detteTranche(d,year,month)}" min="0" style="width:120px;text-align:right;" onchange="setBudget('${key}','__dette_${d.id}',this.value)"><div style="font-size:11px;color:var(--text-muted);">Tranche : ${fmt(detteTranche(d,year,month))} F/mois</div></td>
+      <td class="text-right font-mono">${fmt(spentD)}</td>
+      <td class="text-right font-mono ${val-spentD>=0?'text-success':'text-danger'}">${val?fmtD(val-spentD):'-'}<div><a href="#" onclick="showPage('dettes',null);return false;" style="font-size:12px;color:var(--danger);font-family:inherit;">Voir</a></div></td></tr>`;
   }).join('');
 
   const totalBgt=CATS_DEP.reduce((s,c)=>s+(budgets[c]||0),0)
     +ag.reduce((s,g)=>s+(budgets['__goal_'+g.id]!==undefined?budgets['__goal_'+g.id]:goalPerMonth(g,year,month)),0)
-    +da.reduce((s,d)=>s+(budgets['__dette_'+d.id]!==undefined?budgets['__dette_'+d.id]:d.tranche),0);
+    +da.reduce((s,d)=>s+(budgets['__dette_'+d.id]!==undefined?budgets['__dette_'+d.id]:detteTranche(d,year,month)),0);
   const totalDep=deps.reduce((s,d)=>s+d.amount,0);
   const totalRevMois=DATA.revenus.filter(d=>d.year===year&&d.month===month).reduce((s,d)=>s+d.amount,0);
   const depasse=totalBgt>totalRevMois;
-  const bgtCats=CATS_DEP.filter(c=>c!=='Épargne').reduce((s,c)=>s+(budgets[c]||0),0);
+  const bgtCats=CATS_DEP.filter(c=>c!=='Épargne'&&c!=='Dettes').reduce((s,c)=>s+(budgets[c]||0),0);
   const bgtEpargne=(budgets['Épargne']||0)+ag.reduce((s,g)=>s+(budgets['__goal_'+g.id]!==undefined?budgets['__goal_'+g.id]:goalPerMonth(g,year,month)),0);
-  const bgtDettes=da.reduce((s,d)=>s+(budgets['__dette_'+d.id]!==undefined?budgets['__dette_'+d.id]:d.tranche),0);
+  const bgtDettes=(budgets['Dettes']||0)+da.reduce((s,d)=>s+(budgets['__dette_'+d.id]!==undefined?budgets['__dette_'+d.id]:detteTranche(d,year,month)),0);
 
   document.getElementById('budget-content').innerHTML=`
     <div class="card"><p style="font-size:13px;color:var(--text-muted);margin-bottom:1rem;">Modifiez les montants prévisionnels — enregistrement automatique.</p>
@@ -858,7 +892,7 @@ function renderBudget(){
       <p style="font-size:13px;color:var(--text-muted);margin-bottom:.75rem;">Saisis chaque dépense dans la catégorie qui lui correspond le mieux.</p>
       ${CATS_DEP.map(c=>`<div style="padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;"><strong>${c}</strong><div style="color:var(--text-muted);margin-top:2px;">${DESC_CATS[c]||''}</div></div>`).join('')}
       <div style="padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;"><strong>Épargne objectifs</strong><div style="color:var(--text-muted);margin-top:2px;">Somme à mettre de côté ce mois-ci pour atteindre un objectif (voyage, projet, etc.). Le montant suggéré est ce qu'il reste à épargner, divisé par le nombre de mois avant la date limite.</div></div>
-      <div style="padding:7px 0;font-size:13px;"><strong>Remboursements dettes</strong><div style="color:var(--text-muted);margin-top:2px;">Somme à rembourser ce mois-ci à la personne à qui tu dois de l'argent (la tranche mensuelle prévue).</div></div>
+      <div style="padding:7px 0;font-size:13px;"><strong>Remboursements dettes</strong><div style="color:var(--text-muted);margin-top:2px;">Somme à rembourser ce mois-ci à la personne à qui tu dois de l'argent. Elle est calculée automatiquement : ce qu'il reste à rembourser, divisé par le nombre de mois avant la date d'échéance.</div></div>
     </div>`;
 }
 function setBudget(key,cat,val){
@@ -903,14 +937,28 @@ function editGoal(id){
   document.getElementById('g-cat').value=g.cat;
   document.getElementById('goal-form-card').style.display='block';
 }
+let alimGoalId=null;
 function alimenterGoal(id){
   const g=DATA.goals.find(g=>g.id===id); if(!g) return;
-  const v=+prompt('Montant à ajouter (FCFA) :');
-  if(!v||v<=0) return;
+  alimGoalId=id;
+  document.getElementById('alim-title').textContent='Alimenter : '+g.name;
+  document.getElementById('alim-wallet').innerHTML=Object.keys(WALLETS).map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
+  document.getElementById('alim-amount').value='';
+  document.getElementById('alim-modal').style.display='flex';
+}
+function hideAlim(){document.getElementById('alim-modal').style.display='none';alimGoalId=null;}
+function confirmerAlim(){
+  const g=DATA.goals.find(g=>g.id===alimGoalId); if(!g) return;
+  const v=+document.getElementById('alim-amount').value;
+  if(!v||v<=0){alert('Saisissez un montant.');return;}
+  const wallet=document.getElementById('alim-wallet').value;
+  const t=todayInfo();
+  const depId=DATA.nextId++;
+  DATA.depenses.push({id:depId,date:t.date,month:t.month,year:t.year,label:'Épargne – '+g.name,amount:v,cat:'Épargne',wallet,goalId:g.id});
   g.saved=(g.saved||0)+v;
   if(!g.history) g.history=[];
-  g.history.push(Object.assign(todayInfo(),{amount:v}));
-  saveData(); renderGoals();
+  g.history.push(Object.assign({},t,{amount:v,depId}));
+  saveData(); hideAlim(); renderGoals();
 }
 function deleteGoal(id){
   if(!confirm('Supprimer cet objectif ?')) return;
@@ -976,7 +1024,7 @@ function renderGoals(){
 function showDetteForm(){
   editDetteId=null;
   document.getElementById('dette-form-title').textContent='Nouvelle dette';
-  ['d-crea','d-motif','d-montant','d-tranche'].forEach(id=>document.getElementById(id).value='');
+  ['d-crea','d-motif','d-montant','d-echeance'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('d-remb').value='0';
   document.getElementById('d-date').value=new Date().toISOString().split('T')[0];
   document.getElementById('dette-form-card').style.display='block';
@@ -987,14 +1035,15 @@ function saveDette(){
   const motif=document.getElementById('d-motif').value.trim();
   const montant=+document.getElementById('d-montant').value;
   const rembourse=+document.getElementById('d-remb').value||0;
-  const tranche=+document.getElementById('d-tranche').value;
+  const echeance=document.getElementById('d-echeance').value;
   const date=document.getElementById('d-date').value;
-  if(!creancier||!montant||!tranche){alert('Remplissez créancier, montant et tranche.');return;}
-  if(editDetteId!==null){
-    const d=DATA.dettes.find(d=>d.id===editDetteId);
-    if(d) Object.assign(d,{creancier,motif,montant,rembourse,tranche,date});
+  const old=editDetteId!==null?DATA.dettes.find(d=>d.id===editDetteId):null;
+  if(!creancier||!montant||(!echeance&&!(old&&old.tranche))){alert('Remplissez créancier, montant et date d\'échéance.');return;}
+  const tranche=echeance?detteTranche({montant,rembourse,echeance,tranche:0}):old.tranche;
+  if(old){
+    Object.assign(old,{creancier,motif,montant,rembourse,tranche,date,echeance});
   } else {
-    DATA.dettes.push({id:DATA.nextId++,creancier,motif,montant,rembourse,tranche,date});
+    DATA.dettes.push({id:DATA.nextId++,creancier,motif,montant,rembourse,tranche,date,echeance});
   }
   saveData(); hideDetteForm(); renderDettes();
 }
@@ -1006,7 +1055,7 @@ function editDette(id){
   document.getElementById('d-motif').value=d.motif||'';
   document.getElementById('d-montant').value=d.montant;
   document.getElementById('d-remb').value=d.rembourse||0;
-  document.getElementById('d-tranche').value=d.tranche;
+  document.getElementById('d-echeance').value=d.echeance||'';
   document.getElementById('d-date').value=d.date||'';
   document.getElementById('dette-form-card').style.display='block';
 }
@@ -1015,7 +1064,8 @@ function showPayer(id){
   const d=DATA.dettes.find(d=>d.id===id); if(!d) return;
   const restant=d.montant-(d.rembourse||0);
   document.getElementById('payer-info').textContent=`🤝 ${d.creancier} — Restant : ${fmt(restant)} F`;
-  document.getElementById('payer-montant').value=Math.min(d.tranche,restant);
+  document.getElementById('payer-montant').value=Math.min(detteTranche(d)||restant,restant);
+  document.getElementById('payer-wallet').innerHTML=Object.keys(WALLETS).map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
   document.getElementById('payer-modal').style.display='flex';
 }
 function hidePayer(){document.getElementById('payer-modal').style.display='none';payDetteId=null;}
@@ -1025,8 +1075,14 @@ function confirmerPaiement(){
   const d=DATA.dettes.find(d=>d.id===payDetteId); if(!d) return;
   const avant=d.rembourse||0;
   d.rembourse=Math.min(d.montant,avant+v);
+  const reel=d.rembourse-avant;
+  if(reel<=0){hidePayer();return;}
+  const wallet=document.getElementById('payer-wallet').value;
+  const t=todayInfo();
+  const depId=DATA.nextId++;
+  DATA.depenses.push({id:depId,date:t.date,month:t.month,year:t.year,label:'Remboursement – '+d.creancier,amount:reel,cat:'Dettes',wallet,detteId:d.id});
   if(!d.paiements) d.paiements=[];
-  d.paiements.push(Object.assign(todayInfo(),{amount:d.rembourse-avant}));
+  d.paiements.push(Object.assign({},t,{amount:reel,depId}));
   saveData(); hidePayer(); renderDettes();
 }
 function deleteDette(id){
@@ -1043,16 +1099,18 @@ function renderDettes(){
   const cards=DATA.dettes.map(d=>{
     const restant=Math.max(0,d.montant-(d.rembourse||0));
     const pct=Math.min(100,Math.round((d.rembourse||0)/d.montant*100));
-    const mois=restant>0&&d.tranche>0?Math.ceil(restant/d.tranche):0;
+    const trancheC=detteTranche(d);
+    const mois=restant>0&&trancheC>0?Math.ceil(restant/trancheC):0;
     const sold=restant===0;
     let dateSolde='';
-    if(!sold&&mois>0){const e=new Date();e.setMonth(e.getMonth()+mois);dateSolde=e.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});}
+    if(!sold&&d.echeance){dateSolde=new Date(d.echeance).toLocaleDateString('fr-FR',{day:'numeric',month:'long',year:'numeric'});}
+    else if(!sold&&mois>0){const e=new Date();e.setMonth(e.getMonth()+mois);dateSolde=e.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});}
     return `<div class="card" style="margin-bottom:12px;${sold?'opacity:.65':''}">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:10px;">
         <div>
           <div style="font-weight:600;font-size:14px;">🤝 ${d.creancier} ${sold?'<span style="background:var(--success-light);color:var(--success);font-size:11px;padding:2px 8px;border-radius:10px;">✓ Soldée</span>':''}</div>
           ${d.motif?`<div style="font-size:12px;color:var(--text-muted);">${d.motif}</div>`:''}
-          <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Tranche : <strong>${fmt(d.tranche)} F/mois</strong>${!sold&&dateSolde?' — Soldée en : <strong>'+dateSolde+'</strong> ('+mois+' mois)':''}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Tranche : <strong>${fmt(trancheC)} F/mois</strong>${!sold&&dateSolde?(d.echeance?' — Échéance : <strong>'+dateSolde+'</strong>':' — Soldée en : <strong>'+dateSolde+'</strong> ('+mois+' mois)'):''}</div>
         </div>
         <div style="text-align:right;white-space:nowrap;">
           <div style="font-size:17px;font-weight:600;color:${sold?'var(--success)':'var(--danger)'};">${fmt(restant)} F</div>
@@ -1070,7 +1128,7 @@ function renderDettes(){
   }).join('');
   document.getElementById('dettes-list').innerHTML=cards;
   const totalDu=DATA.dettes.reduce((s,d)=>s+Math.max(0,d.montant-(d.rembourse||0)),0);
-  const totalT=DATA.dettes.filter(d=>(d.montant-(d.rembourse||0))>0).reduce((s,d)=>s+d.tranche,0);
+  const totalT=DATA.dettes.filter(d=>(d.montant-(d.rembourse||0))>0).reduce((s,d)=>s+detteTranche(d),0);
   const nb=DATA.dettes.filter(d=>(d.montant-(d.rembourse||0))>0).length;
   document.getElementById('dettes-summary').innerHTML=totalT>0?`
     <div class="card" style="background:var(--danger-light);border-color:var(--danger);">
@@ -1205,30 +1263,5 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
 </script>
-
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js', {
-      scope: './'
-    })
-    .then(registration => {
-      console.log(
-        'Mon Budget - Service Worker enregistré :',
-        registration.scope
-      );
-    })
-    .catch(error => {
-      console.error(
-        'Mon Budget - Erreur Service Worker :',
-        error
-      );
-    });
-  });
-}
-</script>
-
-
-
 </body>
 </html>
