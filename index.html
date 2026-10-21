@@ -213,19 +213,20 @@ tr:hover td{background:var(--surface2);}
         <div class="form-group" style="grid-column:1/-1;"><label>Libellé</label><input type="text" id="dep-label" placeholder="Description..." list="dep-sug"><datalist id="dep-sug"></datalist></div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Montant (FCFA)</label><input type="number" id="dep-amount" placeholder="0" min="0"></div>
+        <div class="form-group"><label>Montant (FCFA)</label><input type="number" id="dep-amount" placeholder="0" min="0" oninput="updateDepFrais()"></div>
         <div class="form-group"><label>Catégorie</label>
           <select id="dep-cat">
-            <option>Alimentation</option><option>Transport</option><option>Supermarché</option><option>Intendance</option><option>Santé</option><option>Communication</option><option>Loisirs</option><option>Equipements</option><option>Charges récurrentes</option><option>Multimédia</option><option>Vêtements</option><option>Entretien matériel</option><option>Aides et prêts</option><option>Offrandes religieuses</option><option>Produits bancaires</option><option>Logement</option><option>Beauté et soins</option><option>Bien-être</option><option>Education</option><option>Scolarité</option><option>Sécurité</option><option>Famille</option><option>Conjoint</option><option>Autres dons</option><option>Épargne</option><option>Dettes</option><option>Autres charges</option>
+            <option>Alimentation</option><option>Transport</option><option>Supermarché</option><option>Intendance</option><option>Santé</option><option>Communication</option><option>Loisirs</option><option>Equipements</option><option>Charges récurrentes</option><option>Multimédia</option><option>Vêtements</option><option>Entretien matériel</option><option>Aides et prêts</option><option>Offrandes religieuses</option><option>Produits bancaires</option><option>Logement</option><option>Beauté et soins</option><option>Bien-être</option><option>Education</option><option>Scolarité</option><option>Sécurité</option><option>Famille</option><option>Conjoint</option><option>Autres dons</option><option>Épargne</option><option>Dettes</option><option>Frais de transfert</option><option>Autres charges</option>
           </select>
         </div>
       </div>
       <div class="form-row">
         <div class="form-group"><label>Wallet</label>
-          <select id="dep-wallet">
+          <select id="dep-wallet" onchange="updateDepFrais()">
             <option value="Cash">💵 Cash</option><option value="Wave">🌊 Wave</option><option value="Orange Money">🟠 Orange Money</option><option value="MTN Money">💛 MTN Money</option><option value="Moov Money">🔵 Moov Money</option><option value="Banque">🏦 Banque</option><option value="Djamo">💳 Djamo</option><option value="Autre">💼 Autre</option>
           </select>
         </div>
+        <div class="form-group"><label>Frais d'envoi (FCFA)</label><input type="number" id="dep-frais" placeholder="0" min="0" oninput="depFraisManuel=true"><div id="dep-frais-hint" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:4px;">
         <button class="btn btn-primary" onclick="addDepense()">✓ Enregistrer</button>
@@ -287,6 +288,9 @@ tr:hover td{background:var(--surface2);}
             <option value="Cash">💵 Cash</option><option value="Wave">🌊 Wave</option><option value="Orange Money">🟠 Orange Money</option><option value="MTN Money">💛 MTN Money</option><option value="Moov Money">🔵 Moov Money</option><option value="Banque">🏦 Banque</option><option value="Djamo">💳 Djamo</option><option value="Autre">💼 Autre</option>
           </select>
         </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Frais prélevés (FCFA)</label><input type="number" id="tr-frais" placeholder="0" min="0" oninput="trFraisManuel=true;updateTrPreview()"><div id="tr-frais-hint" style="font-size:11px;color:var(--text-muted);margin-top:4px;">Saisis le montant exact prélevé (0 si le transfert est gratuit).</div></div>
       </div>
       <div id="tr-preview" style="display:none;background:var(--primary-light);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:10px;font-size:13px;color:var(--primary-dark);"></div>
       <div style="display:flex;gap:8px;margin-top:4px;">
@@ -400,7 +404,7 @@ tr:hover td{background:var(--surface2);}
 <script>
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MONTHS_S = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
-const CATS_DEP = ['Alimentation','Transport','Supermarché','Intendance','Santé','Communication','Loisirs','Equipements','Charges récurrentes','Multimédia','Vêtements','Entretien matériel','Aides et prêts','Offrandes religieuses','Produits bancaires','Logement','Beauté et soins','Bien-être','Education','Scolarité','Sécurité','Famille','Conjoint','Autres dons','Épargne','Dettes','Autres charges'];
+const CATS_DEP = ['Alimentation','Transport','Supermarché','Intendance','Santé','Communication','Loisirs','Equipements','Charges récurrentes','Multimédia','Vêtements','Entretien matériel','Aides et prêts','Offrandes religieuses','Produits bancaires','Logement','Beauté et soins','Bien-être','Education','Scolarité','Sécurité','Famille','Conjoint','Autres dons','Épargne','Dettes','Frais de transfert','Autres charges'];
 const WALLETS = {Cash:'💵',Wave:'🌊','Orange Money':'🟠','MTN Money':'💛','Moov Money':'🔵',Banque:'🏦',Djamo:'💳',Autre:'💼'};
 const DESC_CATS = {
   "Alimentation":"Restaurant, repas de midi ou dîner.",
@@ -428,6 +432,7 @@ const DESC_CATS = {
   "Conjoint":"Dépenses faites pour ton conjoint ou ta conjointe.",
   "Autres dons":"Dons ponctuels qui ne sont ni des offrandes religieuses ni de l'aide à la famille.",
   "Épargne":"Argent mis de côté chaque mois, en dehors des produits bancaires et des objectifs d'épargne.",
+  "Frais de transfert":"Frais prélevés par Wave, Orange Money, la banque ou Djamo lors d'un envoi ou d'un transfert entre wallets.",
   "Dettes":"Remboursement de dettes : argent rendu à une personne ou à une structure à qui tu dois de l'argent.",
   "Autres charges":"Non répertorié, imprévus."
 };
@@ -636,6 +641,27 @@ function renderDashboard(){
 }
 
 // ---- SAISIE ----
+const TAUX_FRAIS=0.01;
+const FRAIS_TRANSFERT_1PCT=['Wave>Djamo','Orange Money>Cash','Orange Money>Djamo'];
+let depFraisManuel=false, trFraisManuel=false;
+function updateDepFrais(){
+  const hint=document.getElementById('dep-frais-hint'); if(!hint) return;
+  const wallet=document.getElementById('dep-wallet').value;
+  const amount=+document.getElementById('dep-amount').value;
+  if(wallet==='Wave'){
+    hint.textContent='Wave prélève 1 % à l\'envoi : suggestion modifiable (mets 0 si pas de frais).';
+    if(!depFraisManuel) document.getElementById('dep-frais').value=amount>0?Math.round(amount*TAUX_FRAIS):'';
+  } else {
+    hint.textContent='';
+    if(!depFraisManuel) document.getElementById('dep-frais').value='';
+  }
+}
+function addFrais(amount,wallet,label,date,extra){
+  if(!amount||amount<=0) return null;
+  const d2=new Date(date); const id=DATA.nextId++;
+  DATA.depenses.push(Object.assign({id,date,month:d2.getMonth(),year:d2.getFullYear(),label:'Frais – '+label,amount,cat:'Frais de transfert',wallet},extra));
+  return id;
+}
 function addTransfert(){
   const date=document.getElementById('tr-date').value;
   if(!date){alert('Sélectionnez une date.');return;}
@@ -645,19 +671,24 @@ function addTransfert(){
   const label=document.getElementById('tr-label').value.trim()||`Transfert ${from} → ${to}`;
   if(!amount){alert('Saisissez un montant.');return;}
   if(from===to){alert('Les wallets source et destination doivent être différents.');return;}
+  const frais=Math.max(0,+document.getElementById('tr-frais').value||0);
   const d2=new Date(date);
-  DATA.transferts.push({id:DATA.nextId++,date,month:d2.getMonth(),year:d2.getFullYear(),label,amount,from,to});
+  const trId=DATA.nextId++;
+  DATA.transferts.push({id:trId,date,month:d2.getMonth(),year:d2.getFullYear(),label,amount,from,to,frais});
+  addFrais(frais,from,label,date,{fraisTr:trId});
   saveData(); clearTr(); renderHistory();
 }
 function clearTr(){
   document.getElementById('tr-label').value='';
   document.getElementById('tr-amount').value='';
+  document.getElementById('tr-frais').value=''; trFraisManuel=false;
   document.getElementById('tr-date').value=new Date().toISOString().split('T')[0];
   document.getElementById('tr-preview').style.display='none';
 }
 function deleteTransfert(id){
   if(!confirm('Supprimer ce transfert ?')) return;
   DATA.transferts=DATA.transferts.filter(t=>t.id!==id);
+  DATA.depenses=DATA.depenses.filter(d=>d.fraisTr!==id);
   saveData(); renderHistory();
 }
 
@@ -667,9 +698,14 @@ function updateTrPreview(){
   const to=document.getElementById('tr-to').value;
   const amount=+document.getElementById('tr-amount').value;
   const prev=document.getElementById('tr-preview');
+  const fr=document.getElementById('tr-frais');
+  const regle=FRAIS_TRANSFERT_1PCT.includes(from+'>'+to);
+  document.getElementById('tr-frais-hint').textContent=regle?'Suggestion de 1 % pour ce trajet : modifie-la si besoin (0 si gratuit).':'Saisis le montant exact prélevé (0 si le transfert est gratuit).';
+  if(!trFraisManuel) fr.value=(regle&&amount>0)?Math.round(amount*TAUX_FRAIS):'';
+  const frais=Math.max(0,+fr.value||0);
   if(amount&&from!==to){
     prev.style.display='block';
-    prev.innerHTML=`🔄 ${WALLETS[from]||'💼'} <strong>${from}</strong> → ${WALLETS[to]||'💼'} <strong>${to}</strong> : <strong>${fmt(amount)} F</strong>`;
+    prev.innerHTML=`🔄 ${WALLETS[from]||'💼'} <strong>${from}</strong> → ${WALLETS[to]||'💼'} <strong>${to}</strong> : <strong>${fmt(amount)} F</strong>`+(frais?`<br>Frais : <strong>${fmt(frais)} F</strong> — total débité de ${from} : <strong>${fmt(amount+frais)} F</strong>`:'');
   } else {
     prev.style.display='none';
   }
@@ -696,20 +732,9 @@ function addDepense(){
   const cat=document.getElementById('dep-cat').value;
   const wallet=document.getElementById('dep-wallet').value;
   if(!label||!amount){alert('Remplissez le libellé et le montant.');return;}
-  DATA.depenses.push({id:DATA.nextId++,date,month:d2.getMonth(),year:d2.getFullYear(),label,amount,cat,wallet});
-  saveData(); clearDep(); renderHistory();
-  document.getElementById('dep-sug').innerHTML=[...new Set(DATA.depenses.map(d=>d.label))].map(l=>`<option value="${l}">`).join('');
-}
-function addDepense(){
-  const date=document.getElementById('dep-date').value;
-  if(!date){alert('Sélectionnez une date.');return;}
-  const d2=new Date(date);
-  const label=document.getElementById('dep-label').value.trim();
-  const amount=+document.getElementById('dep-amount').value;
-  const cat=document.getElementById('dep-cat').value;
-  const wallet=document.getElementById('dep-wallet').value;
-  if(!label||!amount){alert('Remplissez le libellé et le montant.');return;}
-  DATA.depenses.push({id:DATA.nextId++,date,month:d2.getMonth(),year:d2.getFullYear(),label,amount,cat,wallet});
+  const depId=DATA.nextId++;
+  DATA.depenses.push({id:depId,date,month:d2.getMonth(),year:d2.getFullYear(),label,amount,cat,wallet});
+  addFrais(Math.max(0,+document.getElementById('dep-frais').value||0),wallet,label,date,{fraisDe:depId});
   saveData(); clearDep(); renderHistory();
   document.getElementById('dep-sug').innerHTML=[...new Set(DATA.depenses.map(d=>d.label))].map(l=>`<option value="${l}">`).join('');
 }
@@ -726,7 +751,8 @@ function addRevenu(){
   saveData(); clearRev(); renderHistory();
 }
 function clearDep(){
-  ['dep-label','dep-amount'].forEach(id=>document.getElementById(id).value='');
+  ['dep-label','dep-amount','dep-frais'].forEach(id=>document.getElementById(id).value='');
+  depFraisManuel=false; updateDepFrais();
   document.getElementById('dep-date').value=new Date().toISOString().split('T')[0];
 }
 function clearRev(){
@@ -745,7 +771,7 @@ function deleteEntry(type,id){
       const g=DATA.goals.find(x=>x.id===dep.goalId);
       if(g){ g.saved=Math.max(0,(g.saved||0)-dep.amount); g.history=(g.history||[]).filter(h=>h.depId!==id); }
     }
-    DATA.depenses=DATA.depenses.filter(x=>x.id!==id);
+    DATA.depenses=DATA.depenses.filter(x=>x.id!==id&&x.fraisDe!==id);
   }
   else if(type==='rev') DATA.revenus=DATA.revenus.filter(x=>x.id!==id);
   saveData(); renderHistory();
