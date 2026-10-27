@@ -1,10 +1,11 @@
-// Service worker : l'app fonctionne hors connexion.
-// Réseau d'abord (pour recevoir les mises à jour), cache en secours.
-const CACHE = 'mon-budget-v1';
+// Service worker de Mon Budget.
+// Réseau d'abord (pour recevoir tout de suite les mises à jour), cache en secours hors connexion.
+const VERSION = '2026.10.26-1';
+const CACHE = 'mon-budget-' + VERSION;
 const FILES = ['./','./index.html','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png','./icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, {cache: 'reload'})))));
   self.skipWaiting();
 });
 
@@ -16,11 +17,11 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
+  const url = new URL(e.request.url);
+  if (e.request.method !== 'GET' || url.origin !== location.origin || url.search) return;
   e.respondWith(
-    fetch(e.request).then(res => {
-      const copy = res.clone();
-      caches.open(CACHE).then(c => c.put(e.request, copy));
+    fetch(e.request, {cache: 'no-cache'}).then(res => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(e.request, copy)); }
       return res;
     }).catch(() => caches.match(e.request).then(r => r || caches.match('./index.html')))
   );
