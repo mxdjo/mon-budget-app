@@ -162,6 +162,25 @@ tr:hover td{background:var(--surface2);}
     <div style="display:flex;gap:8px;"><button class="btn btn-primary" onclick="confirmerAlim()" style="flex:1;">✓ Enregistrer</button><button class="btn btn-secondary" onclick="hideAlim()">Annuler</button></div>
   </div>
 </div>
+<div id="retrait-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:1.5rem;width:400px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:1rem;"><b id="retr-title">Retirer de l'épargne</b><button onclick="hideRetrait()" style="background:none;border:none;cursor:pointer;font-size:18px;">✕</button></div>
+    <div id="retr-info" style="font-size:12px;color:var(--text-muted);margin-bottom:.75rem;"></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Montant retiré (FCFA)</label><input type="number" id="retr-amount" min="1" placeholder="0"></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Date</label><input type="date" id="retr-date"></div>
+    <div style="margin-bottom:.75rem;font-size:13px;">
+      <label style="display:flex;gap:8px;align-items:center;margin-bottom:6px;cursor:pointer;"><input type="radio" name="retr-mode" value="depense" checked onchange="toggleRetraitMode()"> Je l'ai dépensé</label>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="radio" name="retr-mode" value="transfert" onchange="toggleRetraitMode()"> Je le déplace vers un autre wallet</label>
+    </div>
+    <div id="retr-depense">
+      <div class="form-group" style="margin-bottom:.75rem;"><label>Pour quoi ?</label><input type="text" id="retr-label" placeholder="Ex : Courses, sortie…"></div>
+      <div class="form-group" style="margin-bottom:.75rem;"><label>Catégorie de la dépense</label><select id="retr-cat"></select></div>
+    </div>
+    <div id="retr-transfert" style="display:none;"><div class="form-group" style="margin-bottom:.75rem;"><label>Wallet de destination</label><select id="retr-dest"></select></div></div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;">Le total de l'objectif diminue du montant retiré. L'opération apparaît dans l'historique et peut y être supprimée pour l'annuler.</div>
+    <div style="display:flex;gap:8px;"><button class="btn btn-primary" onclick="confirmerRetrait()" style="flex:1;">✓ Enregistrer</button><button class="btn btn-secondary" onclick="hideRetrait()">Annuler</button></div>
+  </div>
+</div>
 <div id="payer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
   <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:1.5rem;width:340px;max-width:95vw;">
     <div style="font-weight:600;margin-bottom:.5rem;">Payer une tranche</div>
@@ -666,7 +685,7 @@ function renderDashboard(){
   const alerts=[];
   allCats().forEach(cat=>{
     const b=budgets[cat]||0; if(!b) return;
-    const spent=deps.filter(d=>d.cat===cat&&!d.goalId&&!d.detteId).reduce((s,d)=>s+d.amount,0);
+    const spent=deps.filter(d=>d.cat===cat&&(!d.goalId||d.retrait)&&!d.detteId).reduce((s,d)=>s+d.amount,0);
     if(spent>=b) alerts.push({cat,spent,b,over:spent>b});
   });
   document.getElementById('dash-alerts').innerHTML=alerts.map(a=>
@@ -719,7 +738,7 @@ function renderDashboard(){
   let bars='';
   allCats().forEach(cat=>{
     const b=budgets[cat]||0; if(!b) return;
-    const spent=deps.filter(d=>d.cat===cat&&!d.goalId&&!d.detteId).reduce((s,d)=>s+d.amount,0);
+    const spent=deps.filter(d=>d.cat===cat&&(!d.goalId||d.retrait)&&!d.detteId).reduce((s,d)=>s+d.amount,0);
     const pct=Math.min(100,Math.round(spent/b*100));
     const cls=pct>=100?'progress-danger':pct>=80?'progress-warn':'progress-ok';
     bars+=`<div class="progress-wrap"><div class="progress-header"><span>${cat} ${pct>=100?'🔴':pct>=80?'🟡':''}</span><span style="color:var(--text-muted);">${fmt(spent)} / ${fmt(b)} F (${pct}%)</span></div><div class="progress-bar-bg"><div class="progress-bar ${cls}" style="width:${pct}%;"></div></div></div>`;
@@ -794,6 +813,11 @@ function clearTr(){
 }
 function deleteTransfert(id){
   if(!confirm('Supprimer ce transfert ?')) return;
+  const tr=DATA.transferts.find(t=>t.id===id);
+  if(tr&&tr.goalId&&tr.retrait){
+    const g=DATA.goals.find(x=>x.id===tr.goalId);
+    if(g){ g.saved=(g.saved||0)+tr.amount; g.history=(g.history||[]).filter(h=>h.depId!==id); }
+  }
   DATA.transferts=DATA.transferts.filter(t=>t.id!==id);
   DATA.depenses=DATA.depenses.filter(d=>d.fraisTr!==id);
   saveData(); renderHistory();
@@ -821,7 +845,9 @@ function updateTrPreview(){
 // Calcul solde wallet incluant transferts
 function epargneParWallet(){
   const r={};
-  DATA.depenses.forEach(d=>{ if(d.goalId){ const g=DATA.goals.find(x=>x.id===d.goalId); if(g&&g.wallet) r[g.wallet]=(r[g.wallet]||0)+d.amount; } });
+  DATA.depenses.forEach(d=>{ if(d.goalId){ const g=DATA.goals.find(x=>x.id===d.goalId); if(g&&g.wallet) r[g.wallet]=(r[g.wallet]||0)+(d.retrait?-d.amount:d.amount); } });
+  DATA.transferts.forEach(t=>{ if(t.goalId&&t.retrait&&t.from) r[t.from]=(r[t.from]||0)-t.amount; });
+  Object.keys(r).forEach(k=>{ if(r[k]<=0) delete r[k]; });
   return r;
 }
 function getWalletBalances(){
@@ -830,7 +856,7 @@ function getWalletBalances(){
   DATA.revenus.forEach(r=>{const w=r.wallet||'Cash';wb[w]=(wb[w]||0)+r.amount;});
   DATA.depenses.forEach(d=>{
     const w=d.wallet||'Cash'; wb[w]=(wb[w]||0)-d.amount;
-    if(d.goalId){ const g=DATA.goals.find(x=>x.id===d.goalId); if(g&&g.wallet) wb[g.wallet]=(wb[g.wallet]||0)+d.amount; }
+    if(d.goalId&&!d.retrait){ const g=DATA.goals.find(x=>x.id===d.goalId); if(g&&g.wallet) wb[g.wallet]=(wb[g.wallet]||0)+d.amount; }
   });
   DATA.transferts.forEach(t=>{
     wb[t.from]=(wb[t.from]||0)-t.amount;
@@ -883,7 +909,10 @@ function deleteEntry(type,id){
       const dt=DATA.dettes.find(x=>x.id===dep.detteId);
       if(dt){ dt.rembourse=Math.max(0,(dt.rembourse||0)-dep.amount); dt.paiements=(dt.paiements||[]).filter(h=>h.depId!==id); }
     }
-    if(dep&&dep.goalId){
+    if(dep&&dep.goalId&&dep.retrait){
+      const g=DATA.goals.find(x=>x.id===dep.goalId);
+      if(g){ g.saved=(g.saved||0)+dep.amount; g.history=(g.history||[]).filter(h=>h.depId!==id); }
+    } else if(dep&&dep.goalId){
       const g=DATA.goals.find(x=>x.id===dep.goalId);
       if(g&&!dep.rattrapage){ g.saved=Math.max(0,(g.saved||0)-dep.amount); g.history=(g.history||[]).filter(h=>h.depId!==id); }
     }
@@ -971,7 +1000,7 @@ function renderBudget(){
 
   const rows=allCats().map(cat=>{
     const b=budgets[cat]||0;
-    const spent=deps.filter(d=>d.cat===cat&&!d.goalId&&!d.detteId).reduce((s,d)=>s+d.amount,0);
+    const spent=deps.filter(d=>d.cat===cat&&(!d.goalId||d.retrait)&&!d.detteId).reduce((s,d)=>s+d.amount,0);
     const ecart=b-spent;
     return `<tr><td>${cat}</td>
       <td><input type="number" value="${b||''}" placeholder="0" min="0" style="width:120px;text-align:right;" onchange="setBudget('${key}','${cat}',this.value)"></td>
@@ -984,7 +1013,7 @@ function renderBudget(){
     const sug=goalPerMonth(g,year,month);
     const val=budgets['__goal_'+g.id]!==undefined?budgets['__goal_'+g.id]:sug;
     const ml=Math.max(1,(new Date(g.deadline).getFullYear()-year)*12+(new Date(g.deadline).getMonth()-month));
-    const spentG=deps.filter(d=>d.goalId===g.id).reduce((s,d)=>s+d.amount,0);
+    const spentG=deps.filter(d=>d.goalId===g.id&&!d.retrait).reduce((s,d)=>s+d.amount,0);
     return `<tr style="background:var(--primary-light);">
       <td>${goalIcon(g.cat,18)} <strong>${g.name}</strong><div style="font-size:11px;color:var(--text-muted);">Objectif ${fmt(g.amount)} F — ${fmt(g.saved||0)} F mis de côté — ${ml} mois restants</div></td>
       <td><input type="number" value="${val||''}" placeholder="${sug}" min="0" style="width:120px;text-align:right;" onchange="setBudget('${key}','__goal_${g.id}',this.value)"><div style="font-size:11px;color:var(--text-muted);">Suggéré : ${fmt(sug)} F/mois</div></td>
@@ -1135,6 +1164,52 @@ function confirmerAlim(){
   }
   saveData(); hideAlim(); renderGoals();
 }
+let retraitGoalId=null;
+function retirerGoal(id){
+  const g=DATA.goals.find(g=>g.id===id); if(!g) return;
+  if(!g.wallet){alert('Choisis d\'abord le wallet où cette épargne est gardée (bouton Modifier).');return;}
+  retraitGoalId=id;
+  document.getElementById('retr-title').textContent='Retirer de : '+g.name;
+  document.getElementById('retr-info').textContent='Épargne actuelle : '+fmt(g.saved||0)+' F, gardée dans '+g.wallet+'.';
+  document.getElementById('retr-amount').value='';
+  document.getElementById('retr-date').value=todayInfo().date;
+  document.getElementById('retr-label').value='';
+  document.getElementById('retr-cat').innerHTML=allCats().map(c=>`<option>${c}</option>`).join('');
+  document.getElementById('retr-cat').value='Autres charges';
+  document.getElementById('retr-dest').innerHTML=walletNames().filter(w=>w!==g.wallet).map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
+  document.querySelector('input[name="retr-mode"][value="depense"]').checked=true;
+  toggleRetraitMode();
+  document.getElementById('retrait-modal').style.display='flex';
+}
+function hideRetrait(){document.getElementById('retrait-modal').style.display='none';retraitGoalId=null;}
+function toggleRetraitMode(){
+  const m=document.querySelector('input[name="retr-mode"]:checked').value;
+  document.getElementById('retr-depense').style.display=m==='depense'?'block':'none';
+  document.getElementById('retr-transfert').style.display=m==='transfert'?'block':'none';
+}
+function confirmerRetrait(){
+  const g=DATA.goals.find(g=>g.id===retraitGoalId); if(!g) return;
+  const v=+document.getElementById('retr-amount').value;
+  if(!v||v<=0){alert('Saisissez un montant.');return;}
+  if(v>(g.saved||0)){alert('Le montant dépasse l\'épargne de cet objectif ('+fmt(g.saved||0)+' F).');return;}
+  const date=document.getElementById('retr-date').value||todayInfo().date;
+  const dd=new Date(date); const t={date,year:dd.getFullYear(),month:dd.getMonth()};
+  const mode=document.querySelector('input[name="retr-mode"]:checked').value;
+  const id=DATA.nextId++;
+  if(mode==='depense'){
+    const label=document.getElementById('retr-label').value.trim()||('Prélevé sur l\'épargne – '+g.name);
+    const cat=document.getElementById('retr-cat').value;
+    DATA.depenses.push({id,date,month:t.month,year:t.year,label,amount:v,cat,wallet:g.wallet,goalId:g.id,retrait:true});
+  } else {
+    const dest=document.getElementById('retr-dest').value;
+    if(!dest){alert('Choisis un wallet de destination.');return;}
+    DATA.transferts.push({id,date,month:t.month,year:t.year,label:'Retrait épargne – '+g.name,amount:v,from:g.wallet,to:dest,frais:0,goalId:g.id,retrait:true});
+  }
+  g.saved=Math.max(0,(g.saved||0)-v);
+  if(!g.history) g.history=[];
+  g.history.push(Object.assign({},t,{amount:-v,depId:id}));
+  saveData(); hideRetrait(); renderGoals();
+}
 function deleteGoal(id){
   if(!confirm('Supprimer cet objectif ?')) return;
   DATA.goals=DATA.goals.filter(g=>g.id!==id);
@@ -1172,6 +1247,7 @@ function renderGoals(){
       </div>
       <div style="display:flex;gap:6px;">
         ${!ok?`<button class="btn btn-primary btn-sm" onclick="alimenterGoal(${g.id})">+ Alimenter</button>`:''}
+        ${(g.saved||0)>0?`<button class="btn btn-secondary btn-sm" onclick="retirerGoal(${g.id})">↩ Retirer</button>`:''}
         <button class="btn btn-secondary btn-sm" onclick="editGoal(${g.id})">Modifier</button>
         <button class="btn btn-danger btn-sm" onclick="deleteGoal(${g.id})">Supprimer</button>
       </div>
@@ -1438,7 +1514,7 @@ document.addEventListener('DOMContentLoaded',function(){
   fillWalletSelects();
   renderDashboard();
 });
-const APP_BUILD='2026.10.27-2';
+const APP_BUILD='2026.10.27-3';
 async function verifierMiseAJour(){
   try{
     const r=await fetch('./index.html?v='+Date.now(),{cache:'no-store'});
