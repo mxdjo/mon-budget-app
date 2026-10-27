@@ -156,6 +156,8 @@ tr:hover td{background:var(--surface2);}
     <div style="display:flex;justify-content:space-between;margin-bottom:1rem;"><b id="alim-title">Alimenter l'objectif</b><button onclick="hideAlim()" style="background:none;border:none;cursor:pointer;font-size:18px;">✕</button></div>
     <div class="form-group" style="margin-bottom:.75rem;"><label>Montant à mettre de côté (FCFA)</label><input type="number" id="alim-amount" min="1" placeholder="0"></div>
     <div class="form-group" style="margin-bottom:.75rem;"><label>Wallet d'où l'argent est sorti</label><select id="alim-wallet"></select></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Date du versement</label><input type="date" id="alim-date"></div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:.75rem;cursor:pointer;"><input type="checkbox" id="alim-ratt" style="margin-top:2px;"><span><strong>Rattrapage :</strong> ce versement a déjà été compté dans le total de l'objectif (avant la mise à jour). Il met seulement à jour les wallets et les dépenses, sans l'ajouter une seconde fois à l'objectif.</span></label>
     <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;">Ce montant sera enregistré comme une dépense « Épargne » et débité de ce wallet.<span id="alim-dest"></span></div>
     <div style="display:flex;gap:8px;"><button class="btn btn-primary" onclick="confirmerAlim()" style="flex:1;">✓ Enregistrer</button><button class="btn btn-secondary" onclick="hideAlim()">Annuler</button></div>
   </div>
@@ -883,7 +885,7 @@ function deleteEntry(type,id){
     }
     if(dep&&dep.goalId){
       const g=DATA.goals.find(x=>x.id===dep.goalId);
-      if(g){ g.saved=Math.max(0,(g.saved||0)-dep.amount); g.history=(g.history||[]).filter(h=>h.depId!==id); }
+      if(g&&!dep.rattrapage){ g.saved=Math.max(0,(g.saved||0)-dep.amount); g.history=(g.history||[]).filter(h=>h.depId!==id); }
     }
     DATA.depenses=DATA.depenses.filter(x=>x.id!==id&&x.fraisDe!==id);
   }
@@ -1107,6 +1109,8 @@ function alimenterGoal(id){
   document.getElementById('alim-title').textContent='Alimenter : '+g.name;
   document.getElementById('alim-wallet').innerHTML=walletNames().map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
   document.getElementById('alim-amount').value='';
+  document.getElementById('alim-date').value=todayInfo().date;
+  document.getElementById('alim-ratt').checked=false;
   document.getElementById('alim-dest').textContent=g.wallet?' Il sera gardé dans '+g.wallet+'.':' (Cet objectif n\'a pas de wallet de destination : modifie-le pour en choisir un.)';
   document.getElementById('alim-modal').style.display='flex';
 }
@@ -1116,12 +1120,19 @@ function confirmerAlim(){
   const v=+document.getElementById('alim-amount').value;
   if(!v||v<=0){alert('Saisissez un montant.');return;}
   const wallet=document.getElementById('alim-wallet').value;
-  const t=todayInfo();
+  const date=document.getElementById('alim-date').value||todayInfo().date;
+  const dd=new Date(date);
+  const t={date,year:dd.getFullYear(),month:dd.getMonth()};
+  const ratt=document.getElementById('alim-ratt').checked;
   const depId=DATA.nextId++;
-  DATA.depenses.push({id:depId,date:t.date,month:t.month,year:t.year,label:'Épargne – '+g.name,amount:v,cat:'Épargne',wallet,goalId:g.id});
-  g.saved=(g.saved||0)+v;
-  if(!g.history) g.history=[];
-  g.history.push(Object.assign({},t,{amount:v,depId}));
+  const dep={id:depId,date:t.date,month:t.month,year:t.year,label:(ratt?'Épargne (rattrapage) – ':'Épargne – ')+g.name,amount:v,cat:'Épargne',wallet,goalId:g.id};
+  if(ratt) dep.rattrapage=true;
+  DATA.depenses.push(dep);
+  if(!ratt){
+    g.saved=(g.saved||0)+v;
+    if(!g.history) g.history=[];
+    g.history.push(Object.assign({},t,{amount:v,depId}));
+  }
   saveData(); hideAlim(); renderGoals();
 }
 function deleteGoal(id){
@@ -1427,7 +1438,7 @@ document.addEventListener('DOMContentLoaded',function(){
   fillWalletSelects();
   renderDashboard();
 });
-const APP_BUILD='2026.10.27-1';
+const APP_BUILD='2026.10.27-2';
 async function verifierMiseAJour(){
   try{
     const r=await fetch('./index.html?v='+Date.now(),{cache:'no-store'});
