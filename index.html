@@ -156,7 +156,7 @@ tr:hover td{background:var(--surface2);}
     <div style="display:flex;justify-content:space-between;margin-bottom:1rem;"><b id="alim-title">Alimenter l'objectif</b><button onclick="hideAlim()" style="background:none;border:none;cursor:pointer;font-size:18px;">✕</button></div>
     <div class="form-group" style="margin-bottom:.75rem;"><label>Montant à mettre de côté (FCFA)</label><input type="number" id="alim-amount" min="1" placeholder="0"></div>
     <div class="form-group" style="margin-bottom:.75rem;"><label>Wallet d'où l'argent est sorti</label><select id="alim-wallet"></select></div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;">Ce montant sera enregistré comme une dépense « Épargne » et débité de ce wallet.</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;">Ce montant sera enregistré comme une dépense « Épargne » et débité de ce wallet.<span id="alim-dest"></span></div>
     <div style="display:flex;gap:8px;"><button class="btn btn-primary" onclick="confirmerAlim()" style="flex:1;">✓ Enregistrer</button><button class="btn btn-secondary" onclick="hideAlim()">Annuler</button></div>
   </div>
 </div>
@@ -362,6 +362,7 @@ tr:hover td{background:var(--surface2);}
         <select id="g-cat"><option value="Voyage">Voyage</option><option value="Séminaire religieux">Séminaire religieux</option><option value="Epargne">Epargne</option><option value="Projet">Projet</option><option value="Autre">Autre</option></select>
       </div>
     </div>
+    <div class="form-row"><div class="form-group" style="grid-column:1/-1;"><label>Où cette épargne est-elle gardée ?</label><select id="g-wallet"></select><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Le wallet qui détient l'argent mis de côté. À chaque versement, l'argent sort du wallet d'origine et rentre dans celui-ci.</div></div></div>
     <div style="display:flex;gap:8px;margin-top:4px;">
       <button class="btn btn-primary" onclick="saveGoal()">Enregistrer</button>
       <button class="btn btn-secondary" onclick="hideGoalForm()">Annuler</button>
@@ -650,10 +651,11 @@ function renderDashboard(){
   // Solde par wallet (cumulé global, incluant transferts)
   const wb=getWalletBalances();
   const wEntries=Object.entries(wb);
+  const epW=epargneParWallet();
   document.getElementById('dash-wallet').innerHTML=wEntries.length?`
     <div class="card mb-1"><div class="card-title">Solde par emplacement</div>
     ${wEntries.map(([w,b])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;">
-      <span>${WALLETS[w]||'💼'} ${w}</span>
+      <span>${WALLETS[w]||'💼'} ${w}${epW[w]?` <span style="font-size:11px;color:var(--text-muted);">(dont épargne : ${fmt(epW[w])} F)</span>`:''}</span>
       <span style="font-weight:600;color:${b>=0?'var(--success)':'var(--danger)'};">${fmt(b)} F</span>
     </div>`).join('')}
     </div>`:'' ;
@@ -815,11 +817,19 @@ function updateTrPreview(){
 }
 
 // Calcul solde wallet incluant transferts
+function epargneParWallet(){
+  const r={};
+  DATA.depenses.forEach(d=>{ if(d.goalId){ const g=DATA.goals.find(x=>x.id===d.goalId); if(g&&g.wallet) r[g.wallet]=(r[g.wallet]||0)+d.amount; } });
+  return r;
+}
 function getWalletBalances(){
   const wb={};
   (DATA.customWallets||[]).forEach(w=>{wb[w.name]=0;});
   DATA.revenus.forEach(r=>{const w=r.wallet||'Cash';wb[w]=(wb[w]||0)+r.amount;});
-  DATA.depenses.forEach(d=>{const w=d.wallet||'Cash';wb[w]=(wb[w]||0)-d.amount;});
+  DATA.depenses.forEach(d=>{
+    const w=d.wallet||'Cash'; wb[w]=(wb[w]||0)-d.amount;
+    if(d.goalId){ const g=DATA.goals.find(x=>x.id===d.goalId); if(g&&g.wallet) wb[g.wallet]=(wb[g.wallet]||0)+d.amount; }
+  });
   DATA.transferts.forEach(t=>{
     wb[t.from]=(wb[t.from]||0)-t.amount;
     wb[t.to]=(wb[t.to]||0)+t.amount;
@@ -1047,8 +1057,14 @@ function setBudget(key,cat,val){
 }
 
 // ---- OBJECTIFS ----
+function fillGoalWalletSelect(val){
+  const sel=document.getElementById('g-wallet');
+  sel.innerHTML='<option value="">— Non suivi dans un wallet —</option>'+walletNames().map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
+  sel.value=val||'';
+}
 function showGoalForm(){
   editGoalId=null;
+  fillGoalWalletSelect('');
   document.getElementById('goal-form-title').textContent='Nouvel objectif';
   ['g-name','g-amount'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('g-saved').value='0';
@@ -1062,12 +1078,13 @@ function saveGoal(){
   const deadline=document.getElementById('g-date').value;
   const saved=+document.getElementById('g-saved').value||0;
   const cat=document.getElementById('g-cat').value;
+  const wallet=document.getElementById('g-wallet').value;
   if(!name||!amount||!deadline){alert('Remplissez tous les champs.');return;}
   if(editGoalId!==null){
     const g=DATA.goals.find(g=>g.id===editGoalId);
-    if(g) Object.assign(g,{name,amount,deadline,saved,cat});
+    if(g) Object.assign(g,{name,amount,deadline,saved,cat,wallet});
   } else {
-    DATA.goals.push({id:DATA.nextId++,name,amount,deadline,saved,cat});
+    DATA.goals.push({id:DATA.nextId++,name,amount,deadline,saved,cat,wallet});
   }
   saveData(); hideGoalForm(); renderGoals();
 }
@@ -1080,6 +1097,7 @@ function editGoal(id){
   document.getElementById('g-date').value=g.deadline;
   document.getElementById('g-saved').value=g.saved||0;
   document.getElementById('g-cat').value=g.cat;
+  fillGoalWalletSelect(g.wallet);
   document.getElementById('goal-form-card').style.display='block';
 }
 let alimGoalId=null;
@@ -1089,6 +1107,7 @@ function alimenterGoal(id){
   document.getElementById('alim-title').textContent='Alimenter : '+g.name;
   document.getElementById('alim-wallet').innerHTML=walletNames().map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
   document.getElementById('alim-amount').value='';
+  document.getElementById('alim-dest').textContent=g.wallet?' Il sera gardé dans '+g.wallet+'.':' (Cet objectif n\'a pas de wallet de destination : modifie-le pour en choisir un.)';
   document.getElementById('alim-modal').style.display='flex';
 }
 function hideAlim(){document.getElementById('alim-modal').style.display='none';alimGoalId=null;}
@@ -1130,7 +1149,7 @@ function renderGoals(){
       <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:10px;">
         <div style="font-size:26px;">${goalIcon(g.cat,30)}</div>
         <div style="flex:1;">
-          <div style="font-weight:500;font-size:14px;">${g.name}</div>
+          <div style="font-weight:500;font-size:14px;">${g.name}${g.wallet?` <span style="font-size:11px;font-weight:400;color:var(--text-muted);">· gardé dans ${WALLETS[g.wallet]||'💼'} ${g.wallet}</span>`:''}</div>
           <div style="font-size:12px;color:var(--text-muted);">Date limite : ${dl.toLocaleDateString('fr-FR')} — ${ok?'<span style="color:var(--success);">✓ Atteint !</span>':over?'<span style="color:var(--danger);">Délai dépassé</span>':ml+' mois restants'}</div>
         </div>
         <div style="text-align:right;"><div style="font-size:17px;font-weight:600;">${fmt(g.saved||0)} F</div><div style="font-size:11px;color:var(--text-muted);">sur ${fmt(g.amount)} F</div></div>
@@ -1408,7 +1427,7 @@ document.addEventListener('DOMContentLoaded',function(){
   fillWalletSelects();
   renderDashboard();
 });
-const APP_BUILD='2026.10.26-1';
+const APP_BUILD='2026.10.27-1';
 async function verifierMiseAJour(){
   try{
     const r=await fetch('./index.html?v='+Date.now(),{cache:'no-store'});
