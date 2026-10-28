@@ -684,7 +684,7 @@ function renderDashboard(){
     <div class="metric"><div class="metric-label">Solde du mois</div><div class="metric-value ${solde>=0?'text-success':'text-danger'}">${fmtD(solde)} F</div><div class="metric-sub">entrées − dépenses du mois</div></div>
     <div class="metric"><div class="metric-label">Report du mois précédent</div><div class="metric-value ${report>=0?'':'text-danger'}">${fmtD(report)} F</div><div class="metric-sub">ce qui restait en fin de mois</div></div>
     <div class="metric"><div class="metric-label">Solde disponible</div><div class="metric-value ${disponible>=0?'text-success':'text-danger'}">${fmtD(disponible)} F</div><div class="metric-sub">report + solde du mois</div></div>
-    ${(DATA.goals.length||totalEp)?`<div class="metric"><div class="metric-label">Épargne projet</div><div class="metric-value" style="color:#378ADD;">${fmt(totalEp)} F</div><div class="metric-sub">${epMois.length} versement(s)</div></div>`:''}
+    ${(DATA.goals.length||totalEp)?`<div class="metric"><div class="metric-label">Épargne projet</div><div class="metric-value" style="color:#378ADD;">${fmt(totalEp)} F</div><div class="metric-sub">${epMois.filter(h=>h.amount>0).length} versement(s)${epMois.some(h=>h.amount<0)?' · '+fmt(-epMois.filter(h=>h.amount<0).reduce((s,h)=>s+h.amount,0))+' F retirés':''}</div></div>`:''}
     ${(DATA.dettes.length||totalDt)?`<div class="metric"><div class="metric-label">Dette remboursée</div><div class="metric-value">${fmt(totalDt)} F</div><div class="metric-sub">${dtMois.length} paiement(s)</div></div>`:''}
     <div class="metric" style="${totalBudget>totalRev?'border-color:var(--danger);background:var(--danger-light);':''}"><div class="metric-label">Budget prévu</div><div class="metric-value ${totalBudget>totalRev?'text-danger':''}">${fmt(totalBudget)} F</div>${totalBudget>totalRev?`<div class="metric-sub text-danger">⚠ Dépasse tes entrées de ${fmt(totalBudget-totalRev)} F</div>`:''}</div>
     ${score!==null?`<div class="metric"><div class="metric-label">Santé financière</div><div class="metric-value ${sc}">${score}%</div><div class="metric-sub">${score>60?'✓ Bonne gestion':score>20?'⚠ Attention':'✗ Dépassement'}</div></div>`:''}
@@ -789,6 +789,7 @@ function renderDashboard(){
 
 // ---- SAISIE ----
 const TAUX_FRAIS=0.01;
+const arrondi5=n=>Math.ceil(Math.round(n*1000)/1000/5)*5; // multiple de 5 F supérieur : 2 F n'existe pas en FCFA
 const FRAIS_TRANSFERT_1PCT=['Wave>Djamo','Orange Money>Cash','Orange Money>Djamo'];
 let depFraisManuel=false, trFraisManuel=false;
 function updateDepFrais(){
@@ -797,7 +798,7 @@ function updateDepFrais(){
   const amount=+document.getElementById('dep-amount').value;
   if(wallet==='Wave'){
     hint.textContent='Wave prélève 1 % à l\'envoi : suggestion modifiable (mets 0 si pas de frais).';
-    if(!depFraisManuel) document.getElementById('dep-frais').value=amount>0?Math.round(amount*TAUX_FRAIS):'';
+    if(!depFraisManuel) document.getElementById('dep-frais').value=amount>0?arrondi5(amount*TAUX_FRAIS):'';
   } else {
     hint.textContent='';
     if(!depFraisManuel) document.getElementById('dep-frais').value='';
@@ -830,7 +831,7 @@ function appliquerEmpietement(wallet,e,opId,t){
   let reste=e;
   ids.forEach((id,i)=>{
     const g=DATA.goals.find(x=>x.id===+id); if(!g) return;
-    const part=i===ids.length-1?reste:Math.min(reste,Math.round(e*par[id]/total));
+    const part=i===ids.length-1?reste:Math.min(reste,Math.round(e*par[id]/total/5)*5);
     reste-=part; if(part<=0) return;
     g.saved=Math.max(0,(g.saved||0)-part);
     if(!g.history) g.history=[];
@@ -896,7 +897,7 @@ function updateTrPreview(){
   const fr=document.getElementById('tr-frais');
   const regle=FRAIS_TRANSFERT_1PCT.includes(from+'>'+to);
   document.getElementById('tr-frais-hint').textContent=regle?'Suggestion de 1 % pour ce trajet : modifie-la si besoin (0 si gratuit).':'Saisis le montant exact prélevé (0 si le transfert est gratuit).';
-  if(!trFraisManuel) fr.value=(regle&&amount>0)?Math.round(amount*TAUX_FRAIS):'';
+  if(!trFraisManuel) fr.value=(regle&&amount>0)?arrondi5(amount*TAUX_FRAIS):'';
   const frais=Math.max(0,+fr.value||0);
   if(amount&&from!==to){
     prev.style.display='block';
@@ -1045,7 +1046,7 @@ function detteTranche(d,year,month){
   if(!d.echeance) return d.tranche||0;
   const e=new Date(d.echeance);
   const ml=Math.max(1,(e.getFullYear()-year)*12+(e.getMonth()-month));
-  return Math.ceil(restantAvant/ml);
+  return arrondi5(restantAvant/ml);
 }
 function versesDepuis(list,year,month){
   return (list||[]).filter(h=>h.year>year||(h.year===year&&h.month>=month)).reduce((s,h)=>s+h.amount,0);
@@ -1057,7 +1058,7 @@ function goalPerMonth(g,year,month){
   const ml=Math.max(1,(new Date(g.deadline).getFullYear()-year)*12+(new Date(g.deadline).getMonth()-month));
   const avant=Math.max(0,(g.saved||0)-versesDepuis(g.history,year,month));
   const rest=Math.max(0,g.amount-avant);
-  return rest>0?Math.ceil(rest/ml):0;
+  return rest>0?arrondi5(rest/ml):0;
 }
 function renderBudget(){
   const month=+document.getElementById('bgt-month').value;
@@ -1225,7 +1226,7 @@ function editGoal(id){
   document.getElementById('goal-form-card').style.display='block';
 }
 let alimGoalId=null, alimFraisManuel=false, payerFraisManuel=false, retrFraisManuel=false;
-function suggestFrais(from,to,amount){ return (amount>0&&FRAIS_TRANSFERT_1PCT.includes(from+'>'+to))?Math.round(amount*TAUX_FRAIS):''; }
+function suggestFrais(from,to,amount){ return (amount>0&&FRAIS_TRANSFERT_1PCT.includes(from+'>'+to))?arrondi5(amount*TAUX_FRAIS):''; }
 function updateAlimFrais(){
   const g=DATA.goals.find(g=>g.id===alimGoalId); if(!g) return;
   const from=document.getElementById('alim-wallet').value, amount=+document.getElementById('alim-amount').value;
@@ -1341,7 +1342,10 @@ function renderGoals(){
     const ml=Math.max(0,(dl.getFullYear()-today.getFullYear())*12+(dl.getMonth()-today.getMonth()));
     const rem=Math.max(0,g.amount-(g.saved||0));
     const pm=goalPerMonth(g,today.getFullYear(),today.getMonth());
-    const verseMois=(g.history||[]).filter(h=>h.year===today.getFullYear()&&h.month===today.getMonth()).reduce((s,h)=>s+h.amount,0);
+    const histMois=(g.history||[]).filter(h=>h.year===today.getFullYear()&&h.month===today.getMonth());
+    const verseMois=histMois.reduce((s,h)=>s+h.amount,0);
+    const plusMois=histMois.filter(h=>h.amount>0).reduce((s,h)=>s+h.amount,0);
+    const moinsMois=-histMois.filter(h=>h.amount<0).reduce((s,h)=>s+h.amount,0);
     const pct=Math.min(100,Math.round((g.saved||0)/g.amount*100));
     const over=dl<today&&rem>0;
     const ok=pct>=100;
@@ -1357,7 +1361,7 @@ function renderGoals(){
       <div class="progress-bar-bg" style="margin-bottom:6px;"><div class="progress-bar ${ok?'progress-ok':over?'progress-danger':'progress-ok'}" style="width:${pct}%;"></div></div>
       <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:10px;">
         <span>${pct}% atteint</span>
-        ${!ok&&!over?`<span>→ <strong style="color:var(--text);">${fmt(pm)} F/mois</strong>${verseMois?` <span style="color:${verseMois>=pm?'var(--success)':'var(--text-muted)'};">· versé ce mois : ${fmt(verseMois)} F${verseMois>=pm?' ✓':''}</span>`:''}</span>`:''}
+        ${!ok&&!over?`<span>→ <strong style="color:var(--text);">${fmt(pm)} F/mois</strong>${(plusMois||moinsMois)?` <span style="color:${verseMois>=pm?'var(--success)':'var(--text-muted)'};">· versé ce mois : ${fmt(verseMois)} F${verseMois>=pm?' ✓':''}${moinsMois?' ('+fmt(plusMois)+' versés − '+fmt(moinsMois)+' retirés)':''}</span>`:''}</span>`:''}
       </div>
       <div style="display:flex;gap:6px;">
         ${!ok?`<button class="btn btn-primary btn-sm" onclick="alimenterGoal(${g.id})">+ Alimenter</button>`:''}
@@ -1434,7 +1438,7 @@ function hidePayer(){document.getElementById('payer-modal').style.display='none'
 function updatePayerFrais(){
   const wallet=document.getElementById('payer-wallet').value, amount=+document.getElementById('payer-montant').value;
   document.getElementById('payer-frais-hint').textContent=wallet==='Wave'?'Wave prélève 1 % à l\'envoi : suggestion modifiable (mets 0 si pas de frais).':'';
-  if(!payerFraisManuel) document.getElementById('payer-frais').value=(wallet==='Wave'&&amount>0)?Math.round(amount*TAUX_FRAIS):'';
+  if(!payerFraisManuel) document.getElementById('payer-frais').value=(wallet==='Wave'&&amount>0)?arrondi5(amount*TAUX_FRAIS):'';
 }
 function confirmerPaiement(){
   const v=+document.getElementById('payer-montant').value;
@@ -1639,7 +1643,7 @@ document.addEventListener('DOMContentLoaded',function(){
   fillWalletSelects();
   renderDashboard();
 });
-const APP_BUILD='2026.10.28-1';
+const APP_BUILD='2026.10.28-2';
 async function verifierMiseAJour(){
   try{
     const r=await fetch('./index.html?v='+Date.now(),{cache:'no-store'});

@@ -1,6 +1,6 @@
 // Service worker de Mon Budget.
 // Réseau d'abord (pour recevoir tout de suite les mises à jour), cache en secours hors connexion.
-const VERSION = '2026.10.28-1';
+const VERSION = '2026.10.28-2';
 const CACHE = 'mon-budget-' + VERSION;
 const FILES = ['./','./index.html','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/icon-maskable-512.png','./icons/apple-touch-icon.png'];
 
