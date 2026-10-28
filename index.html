@@ -154,8 +154,9 @@ tr:hover td{background:var(--surface2);}
 <div id="alim-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
   <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:1.5rem;width:380px;max-width:95vw;">
     <div style="display:flex;justify-content:space-between;margin-bottom:1rem;"><b id="alim-title">Alimenter l'objectif</b><button onclick="hideAlim()" style="background:none;border:none;cursor:pointer;font-size:18px;">✕</button></div>
-    <div class="form-group" style="margin-bottom:.75rem;"><label>Montant à mettre de côté (FCFA)</label><input type="number" id="alim-amount" min="1" placeholder="0"></div>
-    <div class="form-group" style="margin-bottom:.75rem;"><label>Wallet d'où l'argent est sorti</label><select id="alim-wallet"></select></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Montant à mettre de côté (FCFA)</label><input type="number" id="alim-amount" min="1" placeholder="0" oninput="updateAlimFrais()"></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Wallet d'où l'argent est sorti</label><select id="alim-wallet" onchange="updateAlimFrais()"></select></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Frais prélevés (FCFA)</label><input type="number" id="alim-frais" min="0" placeholder="0" oninput="alimFraisManuel=true"><div id="alim-frais-hint" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div></div>
     <div class="form-group" style="margin-bottom:.75rem;"><label>Date du versement</label><input type="date" id="alim-date"></div>
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:.75rem;cursor:pointer;"><input type="checkbox" id="alim-ratt" style="margin-top:2px;"><span><strong>Rattrapage :</strong> ce versement a déjà été compté dans le total de l'objectif (avant la mise à jour). Il met seulement à jour les wallets et les dépenses, sans l'ajouter une seconde fois à l'objectif.</span></label>
     <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;">Ce montant sera enregistré comme une dépense « Épargne » et débité de ce wallet.<span id="alim-dest"></span></div>
@@ -166,7 +167,7 @@ tr:hover td{background:var(--surface2);}
   <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:1.5rem;width:400px;max-width:95vw;max-height:90vh;overflow-y:auto;">
     <div style="display:flex;justify-content:space-between;margin-bottom:1rem;"><b id="retr-title">Retirer de l'épargne</b><button onclick="hideRetrait()" style="background:none;border:none;cursor:pointer;font-size:18px;">✕</button></div>
     <div id="retr-info" style="font-size:12px;color:var(--text-muted);margin-bottom:.75rem;"></div>
-    <div class="form-group" style="margin-bottom:.75rem;"><label>Montant retiré (FCFA)</label><input type="number" id="retr-amount" min="1" placeholder="0"></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Montant retiré (FCFA)</label><input type="number" id="retr-amount" min="1" placeholder="0" oninput="updateRetrFrais()"></div>
     <div class="form-group" style="margin-bottom:.75rem;"><label>Date</label><input type="date" id="retr-date"></div>
     <div style="margin-bottom:.75rem;font-size:13px;">
       <label style="display:flex;gap:8px;align-items:center;margin-bottom:6px;cursor:pointer;"><input type="radio" name="retr-mode" value="depense" checked onchange="toggleRetraitMode()"> Je l'ai dépensé</label>
@@ -176,7 +177,8 @@ tr:hover td{background:var(--surface2);}
       <div class="form-group" style="margin-bottom:.75rem;"><label>Pour quoi ?</label><input type="text" id="retr-label" placeholder="Ex : Courses, sortie…"></div>
       <div class="form-group" style="margin-bottom:.75rem;"><label>Catégorie de la dépense</label><select id="retr-cat"></select></div>
     </div>
-    <div id="retr-transfert" style="display:none;"><div class="form-group" style="margin-bottom:.75rem;"><label>Wallet de destination</label><select id="retr-dest"></select></div></div>
+    <div id="retr-transfert" style="display:none;"><div class="form-group" style="margin-bottom:.75rem;"><label>Wallet de destination</label><select id="retr-dest" onchange="updateRetrFrais()"></select></div>
+      <div class="form-group" style="margin-bottom:.75rem;"><label>Frais prélevés (FCFA)</label><input type="number" id="retr-frais" min="0" placeholder="0" oninput="retrFraisManuel=true"><div id="retr-frais-hint" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div></div></div>
     <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;">Le total de l'objectif diminue du montant retiré. L'opération apparaît dans l'historique et peut y être supprimée pour l'annuler.</div>
     <div style="display:flex;gap:8px;"><button class="btn btn-primary" onclick="confirmerRetrait()" style="flex:1;">✓ Enregistrer</button><button class="btn btn-secondary" onclick="hideRetrait()">Annuler</button></div>
   </div>
@@ -185,8 +187,9 @@ tr:hover td{background:var(--surface2);}
   <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:1.5rem;width:340px;max-width:95vw;">
     <div style="font-weight:600;margin-bottom:.5rem;">Payer une tranche</div>
     <div id="payer-info" style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;"></div>
-    <div class="form-group" style="margin-bottom:.75rem;"><label>Montant (FCFA)</label><input type="number" id="payer-montant" min="1"></div>
-    <div class="form-group" style="margin-bottom:.75rem;"><label>Wallet d'où l'argent est sorti</label><select id="payer-wallet"></select></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Montant (FCFA)</label><input type="number" id="payer-montant" min="1" oninput="updatePayerFrais()"></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Wallet d'où l'argent est sorti</label><select id="payer-wallet" onchange="updatePayerFrais()"></select></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Frais d'envoi (FCFA)</label><input type="number" id="payer-frais" min="0" placeholder="0" oninput="payerFraisManuel=true"><div id="payer-frais-hint" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div></div>
     <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;">Ce paiement sera enregistré comme une dépense « Dettes » et débité de ce wallet.</div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-primary" style="flex:1;" onclick="confirmerPaiement()">✓ Confirmer</button>
@@ -208,6 +211,7 @@ tr:hover td{background:var(--surface2);}
       </select>
     </div>
   </div>
+  <div id="backup-reminder"></div>
   <div id="dash-alerts"></div>
   <div id="dash-top3" class="mb-1"></div>
   <div class="metrics" id="dash-metrics"></div>
@@ -630,6 +634,23 @@ function toggleTheme(){
 }
 
 // ---- DASHBOARD ----
+function renderBackupReminder(){
+  const box=document.getElementById('backup-reminder'); if(!box) return;
+  const st=DATA.settings||{};
+  const aDesDonnees=DATA.depenses.length+DATA.revenus.length>0;
+  const jours=st.lastExport?Math.floor((Date.now()-new Date(st.lastExport).getTime())/86400000):null;
+  const reporte=st.snoozeUntil&&Date.now()<new Date(st.snoozeUntil).getTime();
+  if(!aDesDonnees||reporte||(jours!==null&&jours<30)){box.innerHTML='';return;}
+  box.innerHTML=`<div style="background:var(--warning-light);border:1px solid var(--warning);border-radius:var(--radius);padding:10px 14px;margin-bottom:1rem;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <span style="flex:1;min-width:200px;">💾 ${jours===null?'Tu n\'as encore jamais sauvegardé tes données.':'Dernière sauvegarde il y a '+jours+' jours.'} Elles ne sont que sur ce téléphone : exporte-les pour ne pas les perdre.</span>
+    <button class="btn btn-primary btn-sm" onclick="exportData();renderBackupReminder()">Exporter maintenant</button>
+    <button class="btn btn-secondary btn-sm" onclick="reporterRappel()">Plus tard</button>
+  </div>`;
+}
+function reporterRappel(){
+  DATA.settings.snoozeUntil=new Date(Date.now()+7*86400000).toISOString();
+  saveData(); renderBackupReminder();
+}
 function renderDashboard(){
   const year=+document.getElementById('dash-year').value;
   const month=+document.getElementById('dash-month').value;
@@ -782,6 +803,46 @@ function updateDepFrais(){
     if(!depFraisManuel) document.getElementById('dep-frais').value='';
   }
 }
+function epargneParObjectif(wallet){
+  const r={};
+  DATA.goals.filter(g=>g.wallet===wallet).forEach(g=>{
+    let h=0;
+    DATA.depenses.forEach(d=>{ if(d.goalId===g.id) h+=d.retrait?-d.amount:d.amount; });
+    DATA.transferts.forEach(t=>{ if(t.goalId===g.id&&t.retrait) h-=t.amount; });
+    if(h>0) r[g.id]=h;
+  });
+  return r;
+}
+function empietementEpargne(wallet,debit){
+  const detenu=epargneParWallet()[wallet]||0; if(!detenu) return 0;
+  const apres=(getWalletBalances()[wallet]||0)-debit;
+  if(apres>=detenu) return 0;
+  return Math.min(detenu,detenu-Math.max(0,apres));
+}
+function demanderEmpietement(wallet,debit){
+  const e=empietementEpargne(wallet,debit); if(!e) return 0;
+  const noms=Object.keys(epargneParObjectif(wallet)).map(id=>(DATA.goals.find(g=>g.id===+id)||{}).name).filter(Boolean).join(', ');
+  return confirm('⚠️ Cette opération entame ton épargne gardée dans '+wallet+(noms?' ('+noms+')':'')+' : '+fmt(e)+' F.\n\nDiminuer aussi le total épargné des objectifs de '+fmt(e)+' F ?')?e:0;
+}
+function appliquerEmpietement(wallet,e,opId,t){
+  const par=epargneParObjectif(wallet);
+  const ids=Object.keys(par); const total=ids.reduce((s,i)=>s+par[i],0); if(!total) return;
+  let reste=e;
+  ids.forEach((id,i)=>{
+    const g=DATA.goals.find(x=>x.id===+id); if(!g) return;
+    const part=i===ids.length-1?reste:Math.min(reste,Math.round(e*par[id]/total));
+    reste-=part; if(part<=0) return;
+    g.saved=Math.max(0,(g.saved||0)-part);
+    if(!g.history) g.history=[];
+    g.history.push({date:t.date,month:t.month,year:t.year,amount:-part,depId:opId,auto:true});
+  });
+}
+function annulerEmpietement(opId){
+  DATA.goals.forEach(g=>{
+    (g.history||[]).filter(h=>h.auto&&h.depId===opId).forEach(h=>{ g.saved=(g.saved||0)-h.amount; });
+    g.history=(g.history||[]).filter(h=>!(h.auto&&h.depId===opId));
+  });
+}
 function addFrais(amount,wallet,label,date,extra){
   if(!amount||amount<=0) return null;
   const d2=new Date(date); const id=DATA.nextId++;
@@ -799,9 +860,11 @@ function addTransfert(){
   if(from===to){alert('Les wallets source et destination doivent être différents.');return;}
   const frais=Math.max(0,+document.getElementById('tr-frais').value||0);
   const d2=new Date(date);
+  const empiete=demanderEmpietement(from,amount+frais);
   const trId=DATA.nextId++;
   DATA.transferts.push({id:trId,date,month:d2.getMonth(),year:d2.getFullYear(),label,amount,from,to,frais});
   addFrais(frais,from,label,date,{fraisTr:trId});
+  if(empiete) appliquerEmpietement(from,empiete,trId,{date,month:d2.getMonth(),year:d2.getFullYear()});
   saveData(); clearTr(); renderHistory();
 }
 function clearTr(){
@@ -814,6 +877,7 @@ function clearTr(){
 function deleteTransfert(id){
   if(!confirm('Supprimer ce transfert ?')) return;
   const tr=DATA.transferts.find(t=>t.id===id);
+  annulerEmpietement(id);
   if(tr&&tr.goalId&&tr.retrait){
     const g=DATA.goals.find(x=>x.id===tr.goalId);
     if(g){ g.saved=(g.saved||0)+tr.amount; g.history=(g.history||[]).filter(h=>h.depId!==id); }
@@ -874,9 +938,12 @@ function addDepense(){
   const cat=document.getElementById('dep-cat').value;
   const wallet=document.getElementById('dep-wallet').value;
   if(!label||!amount){alert('Remplissez le libellé et le montant.');return;}
+  const fraisDep=Math.max(0,+document.getElementById('dep-frais').value||0);
+  const empiete=demanderEmpietement(wallet,amount+fraisDep);
   const depId=DATA.nextId++;
   DATA.depenses.push({id:depId,date,month:d2.getMonth(),year:d2.getFullYear(),label,amount,cat,wallet});
-  addFrais(Math.max(0,+document.getElementById('dep-frais').value||0),wallet,label,date,{fraisDe:depId});
+  addFrais(fraisDep,wallet,label,date,{fraisDe:depId});
+  if(empiete) appliquerEmpietement(wallet,empiete,depId,{date,month:d2.getMonth(),year:d2.getFullYear()});
   saveData(); clearDep(); renderHistory();
   document.getElementById('dep-sug').innerHTML=[...new Set(DATA.depenses.map(d=>d.label))].map(l=>`<option value="${l}">`).join('');
 }
@@ -905,6 +972,7 @@ function deleteEntry(type,id){
   if(!confirm('Supprimer ?')) return;
   if(type==='dep'){
     const dep=DATA.depenses.find(x=>x.id===id);
+    annulerEmpietement(id);
     if(dep&&dep.detteId){
       const dt=DATA.dettes.find(x=>x.id===dep.detteId);
       if(dt){ dt.rembourse=Math.max(0,(dt.rembourse||0)-dep.amount); dt.paiements=(dt.paiements||[]).filter(h=>h.depId!==id); }
@@ -1044,7 +1112,8 @@ function renderBudget(){
   const bgtDettes=(budgets['Dettes']||0)+da.reduce((s,d)=>s+(budgets['__dette_'+d.id]!==undefined?budgets['__dette_'+d.id]:detteTranche(d,year,month)),0);
 
   document.getElementById('budget-content').innerHTML=`
-    <div class="card"><p style="font-size:13px;color:var(--text-muted);margin-bottom:1rem;">Modifiez les montants prévisionnels — enregistrement automatique.</p>
+    <div class="card"><p style="font-size:13px;color:var(--text-muted);margin-bottom:.75rem;">Modifiez les montants prévisionnels — enregistrement automatique.</p>
+    <div style="margin-bottom:1rem;"><button class="btn btn-secondary btn-sm" onclick="copierBudgetPrecedent()">📋 Copier le budget du mois précédent</button></div>
     <div class="table-wrap"><table>
       <thead><tr><th>Catégorie</th><th>Prévu (FCFA)</th><th class="text-right">Dépensé</th><th class="text-right">Écart</th></tr></thead>
       <tbody>
@@ -1080,6 +1149,30 @@ function renderBudget(){
         ${(DATA.hiddenCats||[]).length?`<button class="btn btn-secondary btn-sm" onclick="restoreCats()" style="margin-left:6px;">↺ Restaurer les ${(DATA.hiddenCats||[]).length} catégorie(s) supprimée(s)</button>`:''}
       </div>
     </div>`;
+}
+function copierBudgetPrecedent(){
+  const month=+document.getElementById('bgt-month').value;
+  const year=+document.getElementById('bgt-year').value;
+  const cles=Object.keys(DATA.budgets);
+  let src=null, y=year, m=month;
+  for(let i=0;i<12&&!src;i++){
+    m--; if(m<0){m=11;y--;}
+    const b=DATA.budgets[y+'-'+m];
+    if(b&&Object.keys(b).some(k=>!k.startsWith('__')&&b[k]>0)) src={y,m,b};
+  }
+  if(!src){alert('Aucun budget trouvé dans les 12 mois précédents.');return;}
+  const key=year+'-'+month;
+  if(!DATA.budgets[key]) DATA.budgets[key]={};
+  const cible=DATA.budgets[key];
+  const noms=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  let n=0;
+  allCats().forEach(c=>{
+    const v=src.b[c]||0;
+    if(v>0&&!(cible[c]>0)){ cible[c]=v; n++; }
+  });
+  if(!n){alert('Rien à copier : toutes les lignes de ce mois ont déjà un montant.');return;}
+  saveData(); renderBudget();
+  alert(n+' ligne(s) copiée(s) depuis '+noms[src.m]+' '+src.y+'. Les lignes déjà remplies n\'ont pas été modifiées.');
 }
 function setBudget(key,cat,val){
   if(!DATA.budgets[key]) DATA.budgets[key]={};
@@ -1131,7 +1224,15 @@ function editGoal(id){
   fillGoalWalletSelect(g.wallet);
   document.getElementById('goal-form-card').style.display='block';
 }
-let alimGoalId=null;
+let alimGoalId=null, alimFraisManuel=false, payerFraisManuel=false, retrFraisManuel=false;
+function suggestFrais(from,to,amount){ return (amount>0&&FRAIS_TRANSFERT_1PCT.includes(from+'>'+to))?Math.round(amount*TAUX_FRAIS):''; }
+function updateAlimFrais(){
+  const g=DATA.goals.find(g=>g.id===alimGoalId); if(!g) return;
+  const from=document.getElementById('alim-wallet').value, amount=+document.getElementById('alim-amount').value;
+  const regle=g.wallet&&FRAIS_TRANSFERT_1PCT.includes(from+'>'+g.wallet);
+  document.getElementById('alim-frais-hint').textContent=regle?'Suggestion de 1 % pour ce trajet : modifie-la si besoin (0 si gratuit).':'Saisis le montant exact prélevé (0 si gratuit).';
+  if(!alimFraisManuel) document.getElementById('alim-frais').value=g.wallet?suggestFrais(from,g.wallet,amount):'';
+}
 function alimenterGoal(id){
   const g=DATA.goals.find(g=>g.id===id); if(!g) return;
   alimGoalId=id;
@@ -1140,6 +1241,7 @@ function alimenterGoal(id){
   document.getElementById('alim-amount').value='';
   document.getElementById('alim-date').value=todayInfo().date;
   document.getElementById('alim-ratt').checked=false;
+  document.getElementById('alim-frais').value=''; alimFraisManuel=false; updateAlimFrais();
   document.getElementById('alim-dest').textContent=g.wallet?' Il sera gardé dans '+g.wallet+'.':' (Cet objectif n\'a pas de wallet de destination : modifie-le pour en choisir un.)';
   document.getElementById('alim-modal').style.display='flex';
 }
@@ -1157,6 +1259,7 @@ function confirmerAlim(){
   const dep={id:depId,date:t.date,month:t.month,year:t.year,label:(ratt?'Épargne (rattrapage) – ':'Épargne – ')+g.name,amount:v,cat:'Épargne',wallet,goalId:g.id};
   if(ratt) dep.rattrapage=true;
   DATA.depenses.push(dep);
+  addFrais(Math.max(0,+document.getElementById('alim-frais').value||0),wallet,dep.label,date,{fraisDe:depId});
   if(!ratt){
     g.saved=(g.saved||0)+v;
     if(!g.history) g.history=[];
@@ -1178,14 +1281,23 @@ function retirerGoal(id){
   document.getElementById('retr-cat').value='Autres charges';
   document.getElementById('retr-dest').innerHTML=walletNames().filter(w=>w!==g.wallet).map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
   document.querySelector('input[name="retr-mode"][value="depense"]').checked=true;
+  document.getElementById('retr-frais').value=''; retrFraisManuel=false;
   toggleRetraitMode();
   document.getElementById('retrait-modal').style.display='flex';
 }
 function hideRetrait(){document.getElementById('retrait-modal').style.display='none';retraitGoalId=null;}
+function updateRetrFrais(){
+  const g=DATA.goals.find(g=>g.id===retraitGoalId); if(!g) return;
+  const dest=document.getElementById('retr-dest').value, amount=+document.getElementById('retr-amount').value;
+  const regle=FRAIS_TRANSFERT_1PCT.includes(g.wallet+'>'+dest);
+  document.getElementById('retr-frais-hint').textContent=regle?'Suggestion de 1 % pour ce trajet : modifie-la si besoin (0 si gratuit).':'Saisis le montant exact prélevé (0 si gratuit).';
+  if(!retrFraisManuel) document.getElementById('retr-frais').value=suggestFrais(g.wallet,dest,amount);
+}
 function toggleRetraitMode(){
   const m=document.querySelector('input[name="retr-mode"]:checked').value;
   document.getElementById('retr-depense').style.display=m==='depense'?'block':'none';
   document.getElementById('retr-transfert').style.display=m==='transfert'?'block':'none';
+  if(m==='transfert') updateRetrFrais();
 }
 function confirmerRetrait(){
   const g=DATA.goals.find(g=>g.id===retraitGoalId); if(!g) return;
@@ -1203,7 +1315,9 @@ function confirmerRetrait(){
   } else {
     const dest=document.getElementById('retr-dest').value;
     if(!dest){alert('Choisis un wallet de destination.');return;}
-    DATA.transferts.push({id,date,month:t.month,year:t.year,label:'Retrait épargne – '+g.name,amount:v,from:g.wallet,to:dest,frais:0,goalId:g.id,retrait:true});
+    const frais=Math.max(0,+document.getElementById('retr-frais').value||0);
+    DATA.transferts.push({id,date,month:t.month,year:t.year,label:'Retrait épargne – '+g.name,amount:v,from:g.wallet,to:dest,frais,goalId:g.id,retrait:true});
+    addFrais(frais,g.wallet,'Retrait épargne – '+g.name,date,{fraisTr:id});
   }
   g.saved=Math.max(0,(g.saved||0)-v);
   if(!g.history) g.history=[];
@@ -1313,9 +1427,15 @@ function showPayer(id){
   document.getElementById('payer-info').textContent=`🤝 ${d.creancier} — Restant : ${fmt(restant)} F`;
   document.getElementById('payer-montant').value=Math.min(detteTranche(d)||restant,restant);
   document.getElementById('payer-wallet').innerHTML=walletNames().map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
+  document.getElementById('payer-frais').value=''; payerFraisManuel=false; updatePayerFrais();
   document.getElementById('payer-modal').style.display='flex';
 }
 function hidePayer(){document.getElementById('payer-modal').style.display='none';payDetteId=null;}
+function updatePayerFrais(){
+  const wallet=document.getElementById('payer-wallet').value, amount=+document.getElementById('payer-montant').value;
+  document.getElementById('payer-frais-hint').textContent=wallet==='Wave'?'Wave prélève 1 % à l\'envoi : suggestion modifiable (mets 0 si pas de frais).':'';
+  if(!payerFraisManuel) document.getElementById('payer-frais').value=(wallet==='Wave'&&amount>0)?Math.round(amount*TAUX_FRAIS):'';
+}
 function confirmerPaiement(){
   const v=+document.getElementById('payer-montant').value;
   if(!v||v<=0) return;
@@ -1326,8 +1446,12 @@ function confirmerPaiement(){
   if(reel<=0){hidePayer();return;}
   const wallet=document.getElementById('payer-wallet').value;
   const t=todayInfo();
+  const fraisP=Math.max(0,+document.getElementById('payer-frais').value||0);
+  const empiete=demanderEmpietement(wallet,reel+fraisP);
   const depId=DATA.nextId++;
   DATA.depenses.push({id:depId,date:t.date,month:t.month,year:t.year,label:'Remboursement – '+d.creancier,amount:reel,cat:'Dettes',wallet,detteId:d.id});
+  addFrais(fraisP,wallet,'Remboursement – '+d.creancier,t.date,{fraisDe:depId});
+  if(empiete) appliquerEmpietement(wallet,empiete,depId,t);
   if(!d.paiements) d.paiements=[];
   d.paiements.push(Object.assign({},t,{amount:reel,depId}));
   saveData(); hidePayer(); renderDettes();
@@ -1402,6 +1526,7 @@ function renderAnnual(){
 
 // ---- EXPORT / IMPORT ----
 function exportData(){
+  DATA.settings.lastExport=new Date().toISOString(); saveData();
   const b=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='mon_budget_'+new Date().toISOString().split('T')[0]+'.json';a.click();
 }
@@ -1514,7 +1639,7 @@ document.addEventListener('DOMContentLoaded',function(){
   fillWalletSelects();
   renderDashboard();
 });
-const APP_BUILD='2026.10.27-3';
+const APP_BUILD='2026.10.28-1';
 async function verifierMiseAJour(){
   try{
     const r=await fetch('./index.html?v='+Date.now(),{cache:'no-store'});
