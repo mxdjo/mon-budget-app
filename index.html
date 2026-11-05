@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mon Budget</title>
+<script>try{if(localStorage.getItem('mon_budget_lock'))document.documentElement.classList.add('locked');}catch(e){}</script>
+<style>html.locked #lock-screen{display:flex!important}html.locked body>*:not(#lock-screen){visibility:hidden}</style>
 <meta name="theme-color" content="#1D9E75">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
@@ -99,6 +101,7 @@ tr:hover td{background:var(--surface2);}
     <button class="nav-tab" onclick="showPage('budget',this)">Budget</button>
     <button class="nav-tab" onclick="showPage('objectifs',this)">Objectifs</button>
     <button class="nav-tab" onclick="showPage('dettes',this)">Dettes</button>
+    <button class="nav-tab" onclick="showPage('creances',this)">On me doit</button>
     <button class="nav-tab" onclick="showPage('annuel',this)">Annuel</button>
   </div>
   <div class="nav-right">
@@ -106,6 +109,7 @@ tr:hover td{background:var(--surface2);}
     <button class="btn-icon" onclick="showSettings()" title="Paramètres">⚙️</button>
     <button class="btn btn-secondary btn-sm" onclick="showCalModal()">📅</button>
     <button class="btn btn-secondary btn-sm" onclick="exportData()">↓ Export</button>
+    <button class="btn btn-secondary btn-sm" onclick="partagerSauvegarde()" title="Envoyer la sauvegarde par WhatsApp, Drive, e-mail…">📤</button>
     <button class="btn btn-secondary btn-sm" onclick="document.getElementById('importFile').click()">↑ Import</button>
     <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
   </div>
@@ -127,6 +131,16 @@ tr:hover td{background:var(--surface2);}
         <div class="form-group" style="max-width:90px;"><label>Icône</label><input type="text" id="nw-emoji" maxlength="4" placeholder="👛"></div>
       </div>
       <button class="btn btn-primary btn-sm" onclick="addWallet()">➕ Ajouter le wallet</button>
+    </div>
+    <div class="form-group" style="margin-bottom:1rem;"><label>🔒 Code PIN</label>
+      <div id="pin-state" style="font-size:12px;color:var(--text-muted);margin-bottom:6px;"></div>
+      <input type="password" id="pin-current" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="PIN actuel" style="margin-bottom:6px;display:none;">
+      <input type="password" id="pin-new" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Nouveau PIN (4 à 6 chiffres)" style="margin-bottom:6px;">
+      <input type="password" id="pin-new2" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Confirmer le nouveau PIN" style="margin-bottom:6px;">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;"><button class="btn btn-primary btn-sm" id="pin-save-btn" onclick="savePin()">Activer le PIN</button><button class="btn btn-secondary btn-sm" id="pin-off-btn" onclick="disablePin()" style="display:none;">Désactiver</button></div>
+      <div id="pin-msg" style="font-size:12px;color:var(--danger);margin-top:6px;"></div>
+      <div id="pin-recovery" style="display:none;margin-top:8px;padding:10px;border:1px dashed var(--warning);border-radius:var(--radius);background:var(--warning-light);font-size:12px;"></div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Le PIN est facultatif : tu peux l'activer ici si tu le souhaites. Il verrouille l'accès à l'app sur cet appareil, n'est pas inclus dans l'Export et ne chiffre pas les données.</div>
     </div>
     <div id="app-build" style="font-size:11px;color:var(--text-muted);margin-bottom:1rem;"></div>
     <button class="btn btn-primary" onclick="hideSettings()" style="width:100%;">Fermer</button>
@@ -161,6 +175,30 @@ tr:hover td{background:var(--surface2);}
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:12px;margin-bottom:.75rem;cursor:pointer;"><input type="checkbox" id="alim-ratt" style="margin-top:2px;"><span><strong>Rattrapage :</strong> ce versement a déjà été compté dans le total de l'objectif (avant la mise à jour). Il met seulement à jour les wallets et les dépenses, sans l'ajouter une seconde fois à l'objectif.</span></label>
     <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;">Ce montant sera enregistré comme une dépense « Épargne » et débité de ce wallet.<span id="alim-dest"></span></div>
     <div style="display:flex;gap:8px;"><button class="btn btn-primary" onclick="confirmerAlim()" style="flex:1;">✓ Enregistrer</button><button class="btn btn-secondary" onclick="hideAlim()">Annuler</button></div>
+  </div>
+</div>
+<div id="encaisser-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:1.5rem;width:380px;max-width:95vw;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:1rem;"><b id="ec-title">Encaisser</b><button onclick="hideEncaisser()" style="background:none;border:none;cursor:pointer;font-size:18px;">✕</button></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Montant reçu (FCFA)</label><input type="number" id="ec-amount" min="1" placeholder="0"></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Wallet qui a reçu l'argent</label><select id="ec-wallet"></select></div>
+    <div class="form-group" style="margin-bottom:.75rem;"><label>Date</label><input type="date" id="ec-date"></div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;">Ce montant n'est pas un revenu : il rend simplement l'argent prêté à ton wallet.</div>
+    <div style="display:flex;gap:8px;"><button class="btn btn-primary" onclick="confirmerEncaisser()" style="flex:1;">✓ Enregistrer</button><button class="btn btn-secondary" onclick="hideEncaisser()">Annuler</button></div>
+  </div>
+</div>
+<div id="edit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:1.5rem;width:400px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;margin-bottom:1rem;"><b>✏️ Modifier l'opération</b><button onclick="hideEdit()" style="background:none;border:none;cursor:pointer;font-size:18px;">✕</button></div>
+    <div id="ed-note" style="font-size:12px;color:var(--text-muted);margin-bottom:.75rem;"></div>
+    <div class="form-group" id="ed-g-date" style="margin-bottom:.75rem;"><label>Date</label><input type="date" id="ed-date"></div>
+    <div class="form-group" id="ed-g-label" style="margin-bottom:.75rem;"><label>Libellé</label><input type="text" id="ed-label"></div>
+    <div class="form-group" id="ed-g-amount" style="margin-bottom:.75rem;"><label>Montant (FCFA)</label><input type="number" id="ed-amount" min="0"></div>
+    <div class="form-group" id="ed-g-cat" style="margin-bottom:.75rem;"><label>Catégorie</label><select id="ed-cat"></select></div>
+    <div class="form-group" id="ed-g-wallet" style="margin-bottom:.75rem;"><label id="ed-wallet-label">Wallet</label><select id="ed-wallet"></select></div>
+    <div class="form-group" id="ed-g-to" style="margin-bottom:.75rem;"><label>Vers (wallet destination)</label><select id="ed-to"></select></div>
+    <div class="form-group" id="ed-g-frais" style="margin-bottom:.75rem;"><label>Frais prélevés (FCFA)</label><input type="number" id="ed-frais" min="0"></div>
+    <div style="display:flex;gap:8px;"><button class="btn btn-primary" onclick="saveEdit()" style="flex:1;">✓ Enregistrer</button><button class="btn btn-secondary" onclick="hideEdit()">Annuler</button></div>
   </div>
 </div>
 <div id="retrait-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center;">
@@ -212,6 +250,7 @@ tr:hover td{background:var(--surface2);}
     </div>
   </div>
   <div id="backup-reminder"></div>
+  <div id="neg-alert"></div>
   <div id="dash-alerts"></div>
   <div id="dash-top3" class="mb-1"></div>
   <div class="metrics" id="dash-metrics"></div>
@@ -237,6 +276,7 @@ tr:hover td{background:var(--surface2);}
     <button class="tab-btn active" onclick="switchTab('depense',this)">Dépense</button>
     <button class="tab-btn" onclick="switchTab('entree',this)">Entrée</button>
     <button class="tab-btn" onclick="switchTab('transfert',this)">🔄 Transfert wallet</button>
+    <button class="tab-btn" onclick="switchTab('ajust',this)">⚖️ Ajuster solde</button>
   </div>
   <div class="tab-content active" id="tab-depense">
     <div class="card" style="max-width:560px;">
@@ -333,6 +373,22 @@ tr:hover td{background:var(--surface2);}
       </div>
     </div>
   </div>
+  <div class="tab-content" id="tab-ajust">
+    <div class="card" style="max-width:560px;">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:1rem;">Si le solde de l'app ne correspond pas à celui de ton vrai wallet (Wave, banque…), saisis le solde réel : l'app enregistre l'écart. Cherche d'abord l'opération oubliée (frais, dépense, entrée) : l'ajustement sert pour un écart que tu ne retrouves pas.</p>
+      <div class="form-row"><div class="form-group" style="grid-column:1/-1;"><label>Date</label><input type="date" id="aj-date"></div></div>
+      <div class="form-row">
+        <div class="form-group"><label>Wallet</label><select id="aj-wallet" onchange="updateAjustPreview()"></select></div>
+        <div class="form-group"><label>Solde réel du wallet (FCFA)</label><input type="number" id="aj-reel" placeholder="0" oninput="updateAjustPreview()"></div>
+      </div>
+      <div class="form-row"><div class="form-group" style="grid-column:1/-1;"><label>Note (optionnel)</label><input type="text" id="aj-label" placeholder="ex: frais non identifiés"></div></div>
+      <div id="aj-preview" style="display:none;background:var(--primary-light);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:10px;font-size:13px;color:var(--primary-dark);"></div>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button class="btn btn-primary" onclick="saveAjust()">✓ Enregistrer l'ajustement</button>
+        <button class="btn btn-secondary" onclick="clearAjust()">Annuler</button>
+      </div>
+    </div>
+  </div>
   <div class="sep"></div>
   <div class="section-header">
     <div class="section-title">Historique</div>
@@ -411,6 +467,7 @@ tr:hover td{background:var(--surface2);}
       <div class="form-group"><label>Montant total dû (FCFA)</label><input type="number" id="d-montant" min="0"></div>
       <div class="form-group"><label>Déjà remboursé (FCFA)</label><input type="number" id="d-remb" min="0" value="0"></div>
     </div>
+    <div class="form-row"><div class="form-group" style="grid-column:1/-1;"><label>Wallet qui a reçu l'argent (facultatif)</label><select id="d-wallet"></select><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Si tu as reçu de l'argent emprunté, choisis le wallet : il sera crédité du montant. Laisse vide pour une dette déjà ancienne (dans ce cas, « Déjà remboursé » reste utilisable).</div></div></div>
     <div class="form-row">
       <div class="form-group"><label>Date d'échéance (fin du remboursement)</label><input type="date" id="d-echeance"><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">La tranche mensuelle est calculée automatiquement.</div></div>
       <div class="form-group"><label>Date de début</label><input type="date" id="d-date"></div>
@@ -424,6 +481,34 @@ tr:hover td{background:var(--surface2);}
   <div id="dettes-summary"></div>
 </div>
 
+<!-- ON ME DOIT -->
+<div class="page" id="page-creances">
+  <div class="section-header">
+    <div class="section-title">Ce qu'on me doit</div>
+    <button class="btn btn-primary btn-sm" onclick="showCreanceForm()">+ Nouveau prêt</button>
+  </div>
+  <div class="card" id="creance-form-card" style="display:none;max-width:540px;margin-bottom:1rem;">
+    <div style="font-weight:500;margin-bottom:1rem;" id="creance-form-title">Nouveau prêt</div>
+    <div class="form-row"><div class="form-group" style="grid-column:1/-1;"><label>Qui te doit de l'argent ?</label><input type="text" id="c-deb" placeholder="ex: Kofi, mon cousin..."></div></div>
+    <div class="form-row"><div class="form-group" style="grid-column:1/-1;"><label>Motif</label><input type="text" id="c-motif" placeholder="ex: Avance sur loyer..."></div></div>
+    <div class="form-row">
+      <div class="form-group"><label>Montant prêté (FCFA)</label><input type="number" id="c-montant" min="0"></div>
+      <div class="form-group"><label>Déjà reçu (FCFA)</label><input type="number" id="c-recu" min="0" value="0"></div>
+    </div>
+    <div class="form-row"><div class="form-group" style="grid-column:1/-1;"><label>Wallet d'où l'argent est sorti (facultatif)</label><select id="c-wallet"></select><div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Choisis le wallet pour qu'il soit débité du montant prêté. Laisse vide pour un prêt ancien, déjà sorti avant l'app.</div></div></div>
+    <div class="form-row">
+      <div class="form-group"><label>Date du prêt</label><input type="date" id="c-date"></div>
+      <div class="form-group"><label>Échéance prévue (facultatif)</label><input type="date" id="c-echeance"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px;">
+      <button class="btn btn-primary" onclick="saveCreance()">Enregistrer</button>
+      <button class="btn btn-secondary" onclick="hideCreanceForm()">Annuler</button>
+    </div>
+  </div>
+  <div id="creances-list"></div>
+  <div id="creances-summary"></div>
+</div>
+
 <!-- ANNUEL -->
 <div class="page" id="page-annuel">
   <div class="section-header">
@@ -432,8 +517,9 @@ tr:hover td{background:var(--surface2);}
       <option value="2024">2024</option><option value="2025">2025</option><option value="2026">2026</option><option value="2027">2027</option>
     </select>
   </div>
-  <div class="card mb-1"><div class="card-title">Dépenses et entrées par mois</div><canvas id="chart-annual" height="160"></canvas></div>
-  <div class="card"><div class="card-title">Récapitulatif par catégorie</div><div id="annual-table"></div></div>
+  <div class="card mb-1"><div class="card-title">Bilan de l'année</div><div id="annual-summary"></div></div>
+  <div class="card mb-1"><div class="card-title">Dépenses, entrées et épargne par mois</div><canvas id="chart-annual" height="160"></canvas></div>
+  <div class="card"><div class="card-title">Récapitulatif par catégorie (dépenses hors épargne objectifs)</div><div id="annual-table"></div></div>
 </div>
 
 <script>
@@ -477,7 +563,7 @@ function walletNames(){
 }
 function syncWallets(){ (DATA.customWallets||[]).forEach(w=>{ WALLETS[w.name]=w.emoji||'👛'; }); }
 function fillWalletSelects(){
-  ['dep-wallet','rev-wallet','tr-from','tr-to'].forEach(id=>{
+  ['dep-wallet','rev-wallet','tr-from','tr-to','aj-wallet'].forEach(id=>{
     const sel=document.getElementById(id); if(!sel) return;
     const v=sel.value;
     sel.innerHTML=walletNames().map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
@@ -507,6 +593,113 @@ function deleteWallet(name){
   delete WALLETS[name];
   saveData(); fillWalletSelects(); renderWalletSettings();
 }
+// ===== VERROUILLAGE PAR CODE PIN =====
+const LOCK_KEY='mon_budget_lock', LOCK_FAIL_KEY='mon_budget_lock_fail';
+function lockCfg(){ try{ return JSON.parse(localStorage.getItem(LOCK_KEY)||'null'); }catch(e){ return null; } }
+function pinEnabled(){ return !!lockCfg(); }
+async function sha256(txt){
+  if(window.crypto&&crypto.subtle&&window.TextEncoder){
+    const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(txt));
+    return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('');
+  }
+  let h1=0xdeadbeef,h2=0x41c6ce57;
+  for(let i=0;i<txt.length;i++){const c=txt.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677);}
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return (h2>>>0).toString(16).padStart(8,'0')+(h1>>>0).toString(16).padStart(8,'0');
+}
+function randomSalt(){ const a=new Uint8Array(12); (window.crypto||{getRandomValues:x=>x.forEach((_,i)=>x[i]=Math.floor(Math.random()*256))}).getRandomValues(a); return Array.from(a).map(x=>x.toString(16).padStart(2,'0')).join(''); }
+function newRecoveryCode(){
+  const al='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const a=new Uint8Array(8);
+  (window.crypto||{getRandomValues:x=>x.forEach((_,i)=>x[i]=Math.floor(Math.random()*256))}).getRandomValues(a);
+  const c=Array.from(a).map(x=>al[x%al.length]).join(''); return c.slice(0,4)+'-'+c.slice(4);
+}
+const normCode=c=>(c||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+function lockApp(){
+  if(!pinEnabled()) return;
+  document.documentElement.classList.add('locked');
+  document.getElementById('lock-screen').style.display='flex';
+  document.getElementById('lock-input').value=''; document.getElementById('lock-msg').textContent='';
+  hideForgot();
+  setTimeout(()=>{ try{document.getElementById('lock-input').focus();}catch(e){} },50);
+}
+function unlockApp(){
+  document.documentElement.classList.remove('locked');
+  document.getElementById('lock-screen').style.display='none';
+  document.getElementById('lock-input').value='';
+  try{localStorage.removeItem(LOCK_FAIL_KEY);}catch(e){}
+}
+function failState(){ try{ return JSON.parse(localStorage.getItem(LOCK_FAIL_KEY)||'{"n":0,"until":0}'); }catch(e){ return {n:0,until:0}; } }
+async function tryUnlock(){
+  const msg=document.getElementById('lock-msg'), cfg=lockCfg(); if(!cfg) return unlockApp();
+  const f=failState();
+  if(f.until&&Date.now()<f.until){ msg.textContent='Trop d\'essais. Réessaie dans '+Math.ceil((f.until-Date.now())/1000)+' s.'; return; }
+  const pin=document.getElementById('lock-input').value.trim();
+  if((await sha256(cfg.salt+pin))===cfg.hash){ unlockApp(); return; }
+  f.n=(f.n||0)+1;
+  if(f.n>=5){ f.until=Date.now()+Math.min(600,30*Math.pow(2,f.n-5))*1000; msg.textContent='Code incorrect. Patiente '+Math.ceil((f.until-Date.now())/1000)+' s avant de réessayer.'; }
+  else msg.textContent='Code incorrect ('+(5-f.n)+' essai(s) avant blocage temporaire).';
+  try{localStorage.setItem(LOCK_FAIL_KEY,JSON.stringify(f));}catch(e){}
+  document.getElementById('lock-input').value='';
+}
+function showForgot(){ document.getElementById('lock-main').style.display='none'; document.getElementById('lock-forgot').style.display='block'; document.getElementById('forgot-msg').textContent=''; }
+function hideForgot(){ document.getElementById('lock-main').style.display='block'; document.getElementById('lock-forgot').style.display='none'; }
+async function resetPinWithCode(){
+  const msg=document.getElementById('forgot-msg'), cfg=lockCfg(); if(!cfg) return;
+  const code=normCode(document.getElementById('forgot-code').value), np=document.getElementById('forgot-new').value.trim();
+  if(!/^\d{4,6}$/.test(np)){ msg.textContent='Le nouveau PIN doit avoir 4 à 6 chiffres.'; return; }
+  if((await sha256(cfg.rsalt+code))!==cfg.rhash){ msg.textContent='Code de secours incorrect.'; return; }
+  cfg.salt=randomSalt(); cfg.hash=await sha256(cfg.salt+np);
+  localStorage.setItem(LOCK_KEY,JSON.stringify(cfg));
+  document.getElementById('forgot-code').value=''; document.getElementById('forgot-new').value='';
+  unlockApp();
+}
+function eraseAll(){
+  if(!confirm('⚠️ Cela efface TOUTES les données de l\'app sur cet appareil (dépenses, revenus, objectifs…). Continuer ?')) return;
+  const t=prompt('Pour confirmer, tape EFFACER en majuscules :');
+  if(t!=='EFFACER') return;
+  try{ localStorage.removeItem('mon_budget_v2'); localStorage.removeItem(LOCK_KEY); localStorage.removeItem(LOCK_FAIL_KEY); }catch(e){}
+  location.reload();
+}
+function renderPinSettings(){
+  const on=pinEnabled();
+  document.getElementById('pin-state').textContent=on?'🔒 PIN activé sur cet appareil.':'PIN désactivé (facultatif) : l\'app s\'ouvre sans code.';
+  document.getElementById('pin-current').style.display=on?'block':'none';
+  document.getElementById('pin-save-btn').textContent=on?'Changer le PIN':'Activer le PIN';
+  document.getElementById('pin-off-btn').style.display=on?'inline-block':'none';
+  ['pin-current','pin-new','pin-new2'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('pin-msg').textContent='';
+}
+async function savePin(){
+  const msg=document.getElementById('pin-msg'), cfg=lockCfg();
+  const np=document.getElementById('pin-new').value.trim(), np2=document.getElementById('pin-new2').value.trim();
+  if(cfg&&(await sha256(cfg.salt+document.getElementById('pin-current').value.trim()))!==cfg.hash){ msg.textContent='PIN actuel incorrect.'; return; }
+  if(!/^\d{4,6}$/.test(np)){ msg.textContent='Le PIN doit avoir 4 à 6 chiffres.'; return; }
+  if(np!==np2){ msg.textContent='Les deux PIN ne correspondent pas.'; return; }
+  const salt=randomSalt(), rsalt=randomSalt(), code=newRecoveryCode();
+  if(!cfg){
+    // Première activation : sauvegarde obligatoire, puis code de secours noté, avant de verrouiller l'app
+    try{ exportData(); }catch(e){ msg.textContent='Impossible de créer la sauvegarde : le PIN n\'est pas activé.'; return; }
+    if(!confirm('💾 Une sauvegarde de tes données vient d\'être téléchargée (fichier mon_budget_….json).\n\nVérifie qu\'elle est bien dans tes téléchargements, puis appuie sur OK pour continuer.\nSans cette sauvegarde, un PIN oublié sans code de secours ferait perdre tes données.')){ msg.textContent='Activation annulée : la sauvegarde n\'a pas été confirmée.'; return; }
+    if(!confirm('🔑 Ton code de secours : '+code+'\n\nNote-le sur papier maintenant. Il ne sera plus affiché après.\n\nOK = je l\'ai noté, activer le PIN.\nAnnuler = ne pas activer le PIN.')){ msg.textContent='Activation annulée : code de secours non confirmé.'; return; }
+  }
+  localStorage.setItem(LOCK_KEY,JSON.stringify({salt,hash:await sha256(salt+np),rsalt,rhash:await sha256(rsalt+normCode(code))}));
+  renderPinSettings();
+  const box=document.getElementById('pin-recovery');
+  box.style.display='block';
+  box.innerHTML='<strong>Code de secours : <span style="font-size:15px;letter-spacing:2px;">'+code+'</span></strong><br>Il ne sera <strong>plus affiché</strong> (rappel). Si tu oublies ton PIN, il permet d\'en choisir un nouveau sans perdre tes données.';
+}
+async function disablePin(){
+  const msg=document.getElementById('pin-msg'), cfg=lockCfg(); if(!cfg) return;
+  if((await sha256(cfg.salt+document.getElementById('pin-current').value.trim()))!==cfg.hash){ msg.textContent='PIN actuel incorrect.'; return; }
+  localStorage.removeItem(LOCK_KEY); localStorage.removeItem(LOCK_FAIL_KEY);
+  renderPinSettings(); document.getElementById('pin-recovery').style.display='none';
+}
+let _cache_hiddenAt=0;
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden') _cache_hiddenAt=Date.now();
+  else if(pinEnabled()&&_cache_hiddenAt&&Date.now()-_cache_hiddenAt>60000){ lockApp(); }
+});
 const CATS_PROTEGEES=['Autres charges','Épargne','Dettes','Frais de transfert'];
 function allCats(){
   const hidden=(DATA.hiddenCats||[]);
@@ -588,6 +781,8 @@ function loadData(){
     goals:[],
     dettes:[],
     transferts:[],
+    ajustements:[],
+    creances:[],
     nextId:100
   };
 }
@@ -598,6 +793,8 @@ if(!DATA.settings) DATA.settings={religion:'ek'};
 if(!DATA.customCats) DATA.customCats=[];
 if(!DATA.hiddenCats) DATA.hiddenCats=[];
 if(!DATA.customWallets) DATA.customWallets=[];
+if(!DATA.ajustements) DATA.ajustements=[];
+if(!DATA.creances) DATA.creances=[];
 syncWallets();
 if(!DATA.dettes) DATA.dettes=[];
 if(!DATA.goals) DATA.goals=[];
@@ -620,6 +817,7 @@ function showPage(name,btn){
   if(name==='budget') renderBudget();
   if(name==='objectifs') renderGoals();
   if(name==='dettes') renderDettes();
+  if(name==='creances') renderCreances();
   if(name==='annuel') renderAnnual();
 }
 function switchTab(name,btn){
@@ -634,6 +832,23 @@ function toggleTheme(){
 }
 
 // ---- DASHBOARD ----
+function renderNegAlert(){
+  const box=document.getElementById('neg-alert'); if(!box) return;
+  const wb=getWalletBalances();
+  const negs=Object.entries(wb).filter(([w,v])=>v<0);
+  box.innerHTML=negs.map(([w,v])=>`<div style="background:var(--danger-light);border:1px solid var(--danger);border-radius:var(--radius);padding:10px 14px;margin-bottom:1rem;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+    <span style="flex:1;min-width:200px;">⚠️ ${WALLETS[w]||'💼'} <strong>${w}</strong> est à <strong>−${fmt(-v)} F</strong> : tu as dépensé plus que ce qu'il contenait. Si c'est de l'argent emprunté, enregistre-le comme dette. Sinon, il manque peut-être un revenu ou un transfert.</span>
+    <button class="btn btn-primary btn-sm" onclick="dettePourDeficit('${w}',${arrondi5(-v)})">Enregistrer comme dette</button>
+  </div>`).join('');
+}
+function dettePourDeficit(wallet,montant){
+  showPage('dettes',null);
+  showDetteForm();
+  document.getElementById('d-montant').value=montant;
+  document.getElementById('d-wallet').value=wallet;
+  document.getElementById('d-motif').value='Découvert sur '+wallet;
+  setTimeout(()=>{ try{document.getElementById('d-crea').focus();}catch(e){} },50);
+}
 function renderBackupReminder(){
   const box=document.getElementById('backup-reminder'); if(!box) return;
   const st=DATA.settings||{};
@@ -643,7 +858,7 @@ function renderBackupReminder(){
   if(!aDesDonnees||reporte||(jours!==null&&jours<30)){box.innerHTML='';return;}
   box.innerHTML=`<div style="background:var(--warning-light);border:1px solid var(--warning);border-radius:var(--radius);padding:10px 14px;margin-bottom:1rem;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
     <span style="flex:1;min-width:200px;">💾 ${jours===null?'Tu n\'as encore jamais sauvegardé tes données.':'Dernière sauvegarde il y a '+jours+' jours.'} Elles ne sont que sur ce téléphone : exporte-les pour ne pas les perdre.</span>
-    <button class="btn btn-primary btn-sm" onclick="exportData();renderBackupReminder()">Exporter maintenant</button>
+    <button class="btn btn-primary btn-sm" onclick="partagerSauvegarde()">📤 Partager / exporter</button>
     <button class="btn btn-secondary btn-sm" onclick="reporterRappel()">Plus tard</button>
   </div>`;
 }
@@ -655,17 +870,22 @@ function renderDashboard(){
   const year=+document.getElementById('dash-year').value;
   const month=+document.getElementById('dash-month').value;
   document.getElementById('dash-title').textContent=MONTHS[month]+' '+year;
+  renderBackupReminder(); renderNegAlert();
 
   const deps=DATA.depenses.filter(d=>d.year===year&&d.month===month);
   const revs=DATA.revenus.filter(d=>d.year===year&&d.month===month);
   const totalDep=deps.reduce((s,d)=>s+d.amount,0);
   const totalRev=revs.reduce((s,d)=>s+d.amount,0);
-  const solde=totalRev-totalDep;
+  const libereMois=epargneLiberee(i=>i===year*12+month);
+  const solde=totalRev-totalDep+libereMois;
   // Report : ce qui restait à la fin du mois précédent (le solde ne repart pas de zéro chaque mois)
   const idxMois=year*12+month;
+  const autresAvant=autresMouvements(i=>i<idxMois);
+  const autresMois=autresMouvements(i=>i===idxMois);
   const report=DATA.revenus.filter(r=>r.year*12+r.month<idxMois).reduce((s,r)=>s+r.amount,0)
-              -DATA.depenses.filter(d=>d.year*12+d.month<idxMois).reduce((s,d)=>s+d.amount,0);
-  const disponible=report+solde;
+              -DATA.depenses.filter(d=>d.year*12+d.month<idxMois).reduce((s,d)=>s+d.amount,0)
+              +autresAvant+epargneLiberee(i=>i<idxMois);
+  const disponible=report+solde+autresMois;
   const key=year+'-'+month;
   const budgets=DATA.budgets[key]||{};
   // Budget total = catégories seulement (pas clés __goal/__dette)
@@ -675,16 +895,19 @@ function renderDashboard(){
   const dtMois=[]; DATA.dettes.forEach(d=>(d.paiements||[]).forEach(h=>{ if(h.year===year&&h.month===month) dtMois.push(h); }));
   const totalEp=epMois.reduce((s,h)=>s+h.amount,0);
   const totalDt=dtMois.reduce((s,h)=>s+h.amount,0);
+  const resteCreances=DATA.creances.reduce((s,c)=>s+resteCreance(c),0);
+  const nbCreances=DATA.creances.filter(c=>resteCreance(c)>0).length;
 
   const score=totalBudget>0?Math.max(0,Math.round((1-totalDep/totalBudget)*100)):null;
   const sc=score===null?'':score>60?'text-success':score>20?'text-warning':'text-danger';
   document.getElementById('dash-metrics').innerHTML=`
     <div class="metric"><div class="metric-label">Total dépenses</div><div class="metric-value text-danger">${fmt(totalDep)} F</div><div class="metric-sub">${deps.length} opération(s)</div></div>
     <div class="metric"><div class="metric-label">Total entrées</div><div class="metric-value text-success">${fmt(totalRev)} F</div><div class="metric-sub">${revs.length} opération(s)</div></div>
-    <div class="metric"><div class="metric-label">Solde du mois</div><div class="metric-value ${solde>=0?'text-success':'text-danger'}">${fmtD(solde)} F</div><div class="metric-sub">entrées − dépenses du mois</div></div>
+    <div class="metric"><div class="metric-label">Solde du mois</div><div class="metric-value ${solde>=0?'text-success':'text-danger'}">${fmtD(solde)} F</div><div class="metric-sub">entrées − dépenses du mois${libereMois?' + '+fmt(libereMois)+' F d\'épargne libérée':''}</div></div>
     <div class="metric"><div class="metric-label">Report du mois précédent</div><div class="metric-value ${report>=0?'':'text-danger'}">${fmtD(report)} F</div><div class="metric-sub">ce qui restait en fin de mois</div></div>
-    <div class="metric"><div class="metric-label">Solde disponible</div><div class="metric-value ${disponible>=0?'text-success':'text-danger'}">${fmtD(disponible)} F</div><div class="metric-sub">report + solde du mois</div></div>
+    <div class="metric"><div class="metric-label">Solde disponible</div><div class="metric-value ${disponible>=0?'text-success':'text-danger'}">${fmtD(disponible)} F</div><div class="metric-sub">report + solde du mois${autresMois?(autresMois>0?' + ':' − ')+fmt(Math.abs(autresMois))+' F (emprunts, prêts, ajustements)':''}</div></div>
     ${(DATA.goals.length||totalEp)?`<div class="metric"><div class="metric-label">Épargne projet</div><div class="metric-value" style="color:#378ADD;">${fmt(totalEp)} F</div><div class="metric-sub">${epMois.filter(h=>h.amount>0).length} versement(s)${epMois.some(h=>h.amount<0)?' · '+fmt(-epMois.filter(h=>h.amount<0).reduce((s,h)=>s+h.amount,0))+' F retirés':''}</div></div>`:''}
+    ${DATA.creances.length?`<div class="metric"><div class="metric-label">On me doit</div><div class="metric-value">${fmt(resteCreances)} F</div><div class="metric-sub">${nbCreances} prêt(s) en cours</div></div>`:''}
     ${(DATA.dettes.length||totalDt)?`<div class="metric"><div class="metric-label">Dette remboursée</div><div class="metric-value">${fmt(totalDt)} F</div><div class="metric-sub">${dtMois.length} paiement(s)</div></div>`:''}
     <div class="metric" style="${totalBudget>totalRev?'border-color:var(--danger);background:var(--danger-light);':''}"><div class="metric-label">Budget prévu</div><div class="metric-value ${totalBudget>totalRev?'text-danger':''}">${fmt(totalBudget)} F</div>${totalBudget>totalRev?`<div class="metric-sub text-danger">⚠ Dépasse tes entrées de ${fmt(totalBudget-totalRev)} F</div>`:''}</div>
     ${score!==null?`<div class="metric"><div class="metric-label">Santé financière</div><div class="metric-value ${sc}">${score}%</div><div class="metric-sub">${score>60?'✓ Bonne gestion':score>20?'⚠ Attention':'✗ Dépassement'}</div></div>`:''}
@@ -789,6 +1012,19 @@ function renderDashboard(){
 
 // ---- SAISIE ----
 const TAUX_FRAIS=0.01;
+// En FCFA, les montants se terminent par 0 ou 5 : on propose d'arrondir ce qui est saisi.
+function m5(ids){
+  for(const id of ids){
+    const el=document.getElementById(id); if(!el) continue;
+    const v=+el.value;
+    if(v&&v%5!==0){
+      const r=Math.max(5,Math.round(v/5)*5);
+      if(confirm(fmt(v)+' F n\'existe pas : en FCFA, les montants se terminent par 0 ou 5.\n\nUtiliser '+fmt(r)+' F ?')) el.value=r;
+      else { el.focus(); return false; }
+    }
+  }
+  return true;
+}
 const arrondi5=n=>Math.ceil(Math.round(n*1000)/1000/5)*5; // multiple de 5 F supérieur : 2 F n'existe pas en FCFA
 const FRAIS_TRANSFERT_1PCT=['Wave>Djamo','Orange Money>Cash','Orange Money>Djamo'];
 let depFraisManuel=false, trFraisManuel=false;
@@ -810,6 +1046,7 @@ function epargneParObjectif(wallet){
     let h=0;
     DATA.depenses.forEach(d=>{ if(d.goalId===g.id) h+=d.retrait?-d.amount:d.amount; });
     DATA.transferts.forEach(t=>{ if(t.goalId===g.id&&t.retrait) h-=t.amount; });
+    (g.history||[]).forEach(x=>{ if(x.auto) h+=x.amount; });
     if(h>0) r[g.id]=h;
   });
   return r;
@@ -826,6 +1063,8 @@ function demanderEmpietement(wallet,debit){
   return confirm('⚠️ Cette opération entame ton épargne gardée dans '+wallet+(noms?' ('+noms+')':'')+' : '+fmt(e)+' F.\n\nDiminuer aussi le total épargné des objectifs de '+fmt(e)+' F ?')?e:0;
 }
 function appliquerEmpietement(wallet,e,opId,t){
+  const op=DATA.depenses.find(x=>x.id===opId)||DATA.transferts.find(x=>x.id===opId);
+  if(op) op.libere=e;
   const par=epargneParObjectif(wallet);
   const ids=Object.keys(par); const total=ids.reduce((s,i)=>s+par[i],0); if(!total) return;
   let reste=e;
@@ -844,6 +1083,211 @@ function annulerEmpietement(opId){
     g.history=(g.history||[]).filter(h=>!(h.auto&&h.depId===opId));
   });
 }
+function updateAjustPreview(){
+  const prev=document.getElementById('aj-preview'); if(!prev) return;
+  if(!document.getElementById('aj-date').value) document.getElementById('aj-date').value=todayInfo().date;
+  const w=document.getElementById('aj-wallet').value, raw=document.getElementById('aj-reel').value;
+  if(raw===''){prev.style.display='none';return;}
+  const reel=+raw, app=getWalletBalances()[w]||0, ecart=reel-app;
+  prev.style.display='block';
+  prev.innerHTML='Solde dans l\'app : <strong>'+fmtD(app)+' F</strong> → solde réel : <strong>'+fmtD(reel)+' F</strong><br>'+(ecart===0?'Aucun écart : rien à ajuster.':'Écart à enregistrer : <strong>'+(ecart>0?'+':'−')+fmt(Math.abs(ecart))+' F</strong>');
+}
+function saveAjust(){
+  if(!m5(['aj-reel'])) return;
+  const date=document.getElementById('aj-date').value||todayInfo().date;
+  const w=document.getElementById('aj-wallet').value, raw=document.getElementById('aj-reel').value;
+  if(raw===''){alert('Saisis le solde réel du wallet.');return;}
+  const ecart=(+raw)-(getWalletBalances()[w]||0);
+  if(!ecart){alert('Aucun écart : le solde de l\'app est déjà correct.');return;}
+  const d2=new Date(date);
+  DATA.ajustements.push({id:DATA.nextId++,date,month:d2.getMonth(),year:d2.getFullYear(),wallet:w,amount:ecart,label:document.getElementById('aj-label').value.trim()||('Ajustement de solde – '+w)});
+  saveData(); clearAjust(); renderHistory();
+}
+function clearAjust(){
+  ['aj-reel','aj-label'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('aj-date').value=todayInfo().date; updateAjustPreview();
+}
+function deleteAjust(id){
+  if(!confirm('Supprimer cet ajustement ? Le solde du wallet reviendra à son état d\'avant.')) return;
+  DATA.ajustements=DATA.ajustements.filter(a=>a.id!==id);
+  saveData(); renderHistory();
+}
+function resteCreance(c){ return Math.max(0,c.montant-(c.recu||0)-(c.encaissements||[]).reduce((s,e)=>s+e.amount,0)); }
+let editCreanceId=null, encaisserId=null;
+function fillCreanceWalletSelect(val){
+  const sel=document.getElementById('c-wallet');
+  sel.innerHTML='<option value="">— Non suivi dans un wallet —</option>'+walletNames().map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
+  sel.value=val||'';
+}
+function showCreanceForm(){
+  editCreanceId=null;
+  document.getElementById('creance-form-title').textContent='Nouveau prêt';
+  ['c-deb','c-motif','c-montant','c-echeance'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('c-recu').value=0; document.getElementById('c-date').value=todayInfo().date;
+  fillCreanceWalletSelect('');
+  document.getElementById('creance-form-card').style.display='block';
+}
+function hideCreanceForm(){ document.getElementById('creance-form-card').style.display='none'; editCreanceId=null; }
+function editCreance(id){
+  const c=DATA.creances.find(x=>x.id===id); if(!c) return;
+  editCreanceId=id;
+  document.getElementById('creance-form-title').textContent='Modifier le prêt';
+  document.getElementById('c-deb').value=c.debiteur; document.getElementById('c-motif').value=c.motif||'';
+  document.getElementById('c-montant').value=c.montant; document.getElementById('c-recu').value=c.recu||0;
+  document.getElementById('c-date').value=c.date||''; document.getElementById('c-echeance').value=c.echeance||'';
+  fillCreanceWalletSelect(c.wallet);
+  document.getElementById('creance-form-card').style.display='block';
+}
+function saveCreance(){
+  if(!m5(['c-montant','c-recu'])) return;
+  const debiteur=document.getElementById('c-deb').value.trim().replace(/[<>&]/g,'');
+  const motif=document.getElementById('c-motif').value.trim().replace(/[<>&]/g,'');
+  const montant=+document.getElementById('c-montant').value;
+  const recu=+document.getElementById('c-recu').value||0;
+  const wallet=document.getElementById('c-wallet').value;
+  const date=document.getElementById('c-date').value||todayInfo().date;
+  const echeance=document.getElementById('c-echeance').value;
+  if(!debiteur||!montant){alert('Remplis le nom et le montant prêté.');return;}
+  if(wallet&&recu>0){alert('Si l\'argent est sorti d\'un wallet, mets « Déjà reçu » à 0 et enregistre chaque remboursement avec « Encaisser ».');return;}
+  if(recu>montant){alert('« Déjà reçu » ne peut pas dépasser le montant prêté.');return;}
+  if(editCreanceId!==null){
+    const c=DATA.creances.find(x=>x.id===editCreanceId);
+    if(c) Object.assign(c,{debiteur,motif,montant,recu,wallet,date,echeance});
+  } else {
+    DATA.creances.push({id:DATA.nextId++,debiteur,motif,montant,recu,wallet,date,echeance,encaissements:[]});
+  }
+  saveData(); hideCreanceForm(); renderCreances();
+}
+function deleteCreance(id){
+  const c=DATA.creances.find(x=>x.id===id); if(!c) return;
+  const msg=(c.wallet||(c.encaissements||[]).length)?'Supprimer ce prêt annule aussi son effet sur tes wallets ('+(c.wallet?fmt(c.montant)+' F rendus à '+c.wallet:'')+((c.encaissements||[]).length?(c.wallet?' et ':'')+(c.encaissements.length)+' encaissement(s) retiré(s)':'')+'). Continuer ?':'Supprimer ce prêt ?';
+  if(!confirm(msg)) return;
+  DATA.creances=DATA.creances.filter(x=>x.id!==id);
+  saveData(); renderCreances();
+}
+function encaisserCreance(id){
+  const c=DATA.creances.find(x=>x.id===id); if(!c) return;
+  encaisserId=id;
+  document.getElementById('ec-title').textContent='Encaisser : '+c.debiteur;
+  document.getElementById('ec-amount').value=resteCreance(c);
+  document.getElementById('ec-wallet').innerHTML=walletNames().map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
+  if(c.wallet) document.getElementById('ec-wallet').value=c.wallet;
+  document.getElementById('ec-date').value=todayInfo().date;
+  document.getElementById('encaisser-modal').style.display='flex';
+}
+function hideEncaisser(){ document.getElementById('encaisser-modal').style.display='none'; encaisserId=null; }
+function confirmerEncaisser(){
+  if(!m5(['ec-amount'])) return;
+  const c=DATA.creances.find(x=>x.id===encaisserId); if(!c) return;
+  let v=+document.getElementById('ec-amount').value;
+  if(!v||v<=0){alert('Saisis un montant.');return;}
+  const reste=resteCreance(c);
+  if(v>reste){ if(!confirm('Le montant dépasse ce qui reste à recevoir ('+fmt(reste)+' F). Enregistrer '+fmt(reste)+' F ?')) return; v=reste; }
+  const date=document.getElementById('ec-date').value||todayInfo().date, d2=new Date(date);
+  if(!c.encaissements) c.encaissements=[];
+  c.encaissements.push({id:DATA.nextId++,date,month:d2.getMonth(),year:d2.getFullYear(),amount:v,wallet:document.getElementById('ec-wallet').value});
+  saveData(); hideEncaisser(); renderCreances();
+}
+function deleteEncaissement(cid,eid){
+  if(!confirm('Annuler cet encaissement ? Le wallet sera débité de ce montant.')) return;
+  const c=DATA.creances.find(x=>x.id===cid); if(!c) return;
+  c.encaissements=(c.encaissements||[]).filter(e=>e.id!==eid);
+  saveData(); renderCreances();
+}
+function renderCreances(){
+  const list=document.getElementById('creances-list'), sum=document.getElementById('creances-summary');
+  if(!DATA.creances.length){ list.innerHTML='<div class="empty"><div class="empty-icon">💸</div>Aucun prêt enregistré. Ajoute l\'argent que tu as prêté pour suivre ce qu\'on te doit.</div>'; sum.innerHTML=''; return; }
+  const today=todayInfo().date;
+  list.innerHTML=DATA.creances.map(c=>{
+    const reste=resteCreance(c), recu=c.montant-reste, pct=c.montant?Math.round(recu/c.montant*100):0;
+    const retard=reste>0&&c.echeance&&c.echeance<today;
+    const encs=(c.encaissements||[]).map(e=>`<div style="font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;margin-top:3px;"><span>${e.date} · ${fmt(e.amount)} F → ${WALLETS[e.wallet]||'💼'} ${e.wallet}</span><a href="#" onclick="deleteEncaissement(${c.id},${e.id});return false;" style="color:var(--danger);">annuler</a></div>`).join('');
+    return `<div class="card" style="margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <div>
+          <div style="font-weight:500;">${c.debiteur}</div>
+          ${c.motif?`<div style="font-size:12px;color:var(--text-muted);">${c.motif}</div>`:''}
+          ${c.wallet?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">💸 Sorti de ${WALLETS[c.wallet]||'💼'} ${c.wallet}${c.date?' le '+c.date:''}</div>`:''}
+        </div>
+        <div style="text-align:right;"><div style="font-size:11px;color:var(--text-muted);">Reste à recevoir</div><div style="font-weight:600;font-size:16px;${reste>0?'':'color:var(--success);'}">${reste>0?fmt(reste)+' F':'Soldé ✓'}</div></div>
+      </div>
+      <div style="margin:8px 0;height:6px;background:var(--surface2);border-radius:4px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:var(--primary);"></div></div>
+      <div style="font-size:12px;color:var(--text-muted);">Prêté : <strong>${fmt(c.montant)} F</strong> — reçu : <strong>${fmt(recu)} F</strong> (${pct}%)${c.echeance?` — Échéance : <strong>${new Date(c.echeance).toLocaleDateString('fr-FR')}</strong>${retard?' <span style="color:var(--danger);">⚠ En retard</span>':''}`:''}</div>
+      ${encs}
+      <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+        ${reste>0?`<button class="btn btn-primary btn-sm" onclick="encaisserCreance(${c.id})">💰 Encaisser</button>`:''}
+        <button class="btn btn-secondary btn-sm" onclick="editCreance(${c.id})">Modifier</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteCreance(${c.id})">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+  const total=DATA.creances.reduce((s,c)=>s+c.montant,0), resteT=DATA.creances.reduce((s,c)=>s+resteCreance(c),0);
+  sum.innerHTML=`<div class="card" style="max-width:540px;font-size:13px;">Total prêté : <strong>${fmt(total)} F</strong> — déjà reçu : <strong>${fmt(total-resteT)} F</strong> — <strong>reste à recevoir : ${fmt(resteT)} F</strong></div>`;
+}
+let editCtx=null;
+function editMode(type,o){
+  if(type==='dep'){ if(o.fraisDe||o.fraisTr) return 'fee'; if(o.goalId||o.detteId||o.libere) return 'label'; return 'full'; }
+  if(type==='tr'){ if(o.goalId||o.libere) return 'label'; return 'full'; }
+  return 'full';
+}
+function editOp(type,id){
+  const list=type==='dep'?DATA.depenses:type==='rev'?DATA.revenus:DATA.transferts;
+  const o=list.find(x=>x.id===id); if(!o) return;
+  const mode=editMode(type,o); editCtx={type,id,mode};
+  const show=(g,v)=>document.getElementById('ed-g-'+g).style.display=v?'block':'none';
+  const full=mode==='full', tr=type==='tr';
+  show('date',full); show('label',true); show('amount',full||mode==='fee');
+  show('cat',full&&!tr); show('wallet',full); show('to',full&&tr); show('frais',full&&tr);
+  document.getElementById('ed-wallet-label').textContent=tr?'De (wallet source)':'Wallet';
+  document.getElementById('ed-note').textContent=mode==='label'?'Cette opération est liée à un objectif, une dette ou de l\'épargne entamée : seul le libellé peut être modifié. Pour changer le reste, supprime-la et recrée-la.':mode==='fee'?'Frais : tu peux corriger le libellé et le montant.':'';
+  document.getElementById('ed-date').value=o.date||'';
+  document.getElementById('ed-label').value=o.label||'';
+  document.getElementById('ed-amount').value=o.amount;
+  const wl=walletNames().map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
+  document.getElementById('ed-wallet').innerHTML=wl; document.getElementById('ed-to').innerHTML=wl;
+  document.getElementById('ed-wallet').value=tr?o.from:(o.wallet||'Cash');
+  if(tr){ document.getElementById('ed-to').value=o.to; document.getElementById('ed-frais').value=o.frais||0; }
+  const cats=type==='dep'?allCats():Array.from(document.getElementById('rev-cat').options).map(x=>x.value||x.text);
+  document.getElementById('ed-cat').innerHTML=cats.map(c=>`<option>${c}</option>`).join('');
+  if(!tr) document.getElementById('ed-cat').value=o.cat;
+  document.getElementById('edit-modal').style.display='flex';
+}
+function hideEdit(){ document.getElementById('edit-modal').style.display='none'; editCtx=null; }
+function saveEdit(){
+  if(!editCtx) return;
+  if(!m5(['ed-amount','ed-frais'])) return;
+  const c=editCtx;
+  const list=c.type==='dep'?DATA.depenses:c.type==='rev'?DATA.revenus:DATA.transferts;
+  const o=list.find(x=>x.id===c.id); if(!o) return hideEdit();
+  const label=document.getElementById('ed-label').value.trim();
+  if(c.mode==='label'){ if(!label){alert('Le libellé ne peut pas être vide.');return;} o.label=label; }
+  else if(c.mode==='fee'){
+    const amount=+document.getElementById('ed-amount').value;
+    if(!label||amount<=0){alert('Remplis le libellé et un montant positif.');return;}
+    o.label=label; o.amount=amount;
+  } else {
+    const date=document.getElementById('ed-date').value, amount=+document.getElementById('ed-amount').value;
+    if(!date||amount<=0){alert('Remplis la date et un montant positif.');return;}
+    const d2=new Date(date); const info={date,month:d2.getMonth(),year:d2.getFullYear()};
+    if(c.type==='tr'){
+      const from=document.getElementById('ed-wallet').value, to=document.getElementById('ed-to').value;
+      if(from===to){alert('Choisis deux wallets différents.');return;}
+      const frais=Math.max(0,+document.getElementById('ed-frais').value||0);
+      const lab=label||('Transfert '+from+' → '+to);
+      Object.assign(o,info,{label:lab,amount,from,to,frais});
+      const child=DATA.depenses.find(x=>x.fraisTr===o.id);
+      if(frais>0&&child) Object.assign(child,info,{amount:frais,wallet:from,label:'Frais – '+lab});
+      else if(frais>0) addFrais(frais,from,lab,date,{fraisTr:o.id});
+      else if(child) DATA.depenses=DATA.depenses.filter(x=>x!==child);
+    } else {
+      if(!label){alert('Le libellé ne peut pas être vide.');return;}
+      const wallet=document.getElementById('ed-wallet').value, cat=document.getElementById('ed-cat').value;
+      Object.assign(o,info,{label,amount,cat,wallet});
+      if(c.type==='dep') DATA.depenses.filter(x=>x.fraisDe===o.id).forEach(x=>Object.assign(x,info,{wallet,label:'Frais – '+label}));
+    }
+  }
+  saveData(); hideEdit(); renderHistory();
+}
 function addFrais(amount,wallet,label,date,extra){
   if(!amount||amount<=0) return null;
   const d2=new Date(date); const id=DATA.nextId++;
@@ -851,6 +1295,7 @@ function addFrais(amount,wallet,label,date,extra){
   return id;
 }
 function addTransfert(){
+  if(!m5(['tr-amount','tr-frais'])) return;
   const date=document.getElementById('tr-date').value;
   if(!date){alert('Sélectionnez une date.');return;}
   const amount=+document.getElementById('tr-amount').value;
@@ -909,19 +1354,50 @@ function updateTrPreview(){
 
 // Calcul solde wallet incluant transferts
 function epargneParWallet(){
-  const r={};
-  DATA.depenses.forEach(d=>{ if(d.goalId){ const g=DATA.goals.find(x=>x.id===d.goalId); if(g&&g.wallet) r[g.wallet]=(r[g.wallet]||0)+(d.retrait?-d.amount:d.amount); } });
-  DATA.transferts.forEach(t=>{ if(t.goalId&&t.retrait&&t.from) r[t.from]=(r[t.from]||0)-t.amount; });
+  const r={}; const add=(w,v)=>{ if(w) r[w]=(r[w]||0)+v; };
+  DATA.depenses.forEach(d=>{
+    if(d.goalId){
+      if(d.retrait) add(d.wallet,-d.amount);
+      else { const g=DATA.goals.find(x=>x.id===d.goalId); add(d.creditWallet||(g&&g.wallet),d.amount); }
+    }
+    if(d.libere) add(d.wallet,-d.libere);
+  });
+  DATA.transferts.forEach(t=>{ if(t.goalId&&t.retrait) add(t.from,-t.amount); if(t.libere) add(t.from,-t.libere); });
   Object.keys(r).forEach(k=>{ if(r[k]<=0) delete r[k]; });
   return r;
+}
+// Épargne « libérée » : argent qui n'est plus mis de côté (retrait d'un objectif, ou dépense faite sur l'épargne)
+function idxDate(str){ const d=str?new Date(str):new Date(); return d.getFullYear()*12+d.getMonth(); }
+// Mouvements de wallet qui ne sont ni des revenus ni des dépenses : emprunts reçus, prêts accordés et encaissés, ajustements de solde
+function autresMouvements(testIdx){
+  let t=0;
+  (DATA.dettes||[]).forEach(d=>{ if(d.wallet&&testIdx(idxDate(d.date))) t+=d.montant; });
+  (DATA.ajustements||[]).forEach(a=>{ if(testIdx(a.year*12+a.month)) t+=a.amount; });
+  (DATA.creances||[]).forEach(c=>{
+    if(c.wallet&&testIdx(idxDate(c.date))) t-=c.montant;
+    (c.encaissements||[]).forEach(e=>{ if(testIdx(e.year*12+e.month)) t+=e.amount; });
+  });
+  return t;
+}
+function epargneLiberee(testIdx){
+  let t=0;
+  DATA.depenses.forEach(d=>{ if(testIdx(d.year*12+d.month)){ if(d.goalId&&d.retrait) t+=d.amount; if(d.libere) t+=d.libere; } });
+  DATA.transferts.forEach(x=>{ if(testIdx(x.year*12+x.month)){ if(x.goalId&&x.retrait) t+=x.amount; if(x.libere) t+=x.libere; } });
+  return t;
 }
 function getWalletBalances(){
   const wb={};
   (DATA.customWallets||[]).forEach(w=>{wb[w.name]=0;});
+  (DATA.dettes||[]).forEach(d=>{ if(d.wallet) wb[d.wallet]=(wb[d.wallet]||0)+d.montant; });
+  (DATA.ajustements||[]).forEach(a=>{ wb[a.wallet]=(wb[a.wallet]||0)+a.amount; });
+  (DATA.creances||[]).forEach(c=>{
+    if(c.wallet) wb[c.wallet]=(wb[c.wallet]||0)-c.montant;
+    (c.encaissements||[]).forEach(e=>{ wb[e.wallet]=(wb[e.wallet]||0)+e.amount; });
+  });
   DATA.revenus.forEach(r=>{const w=r.wallet||'Cash';wb[w]=(wb[w]||0)+r.amount;});
   DATA.depenses.forEach(d=>{
     const w=d.wallet||'Cash'; wb[w]=(wb[w]||0)-d.amount;
-    if(d.goalId&&!d.retrait){ const g=DATA.goals.find(x=>x.id===d.goalId); if(g&&g.wallet) wb[g.wallet]=(wb[g.wallet]||0)+d.amount; }
+    if(d.goalId&&!d.retrait){ const g=DATA.goals.find(x=>x.id===d.goalId); const cw=d.creditWallet||(g&&g.wallet); if(cw) wb[cw]=(wb[cw]||0)+d.amount; }
   });
   DATA.transferts.forEach(t=>{
     wb[t.from]=(wb[t.from]||0)-t.amount;
@@ -931,6 +1407,7 @@ function getWalletBalances(){
 }
 
 function addDepense(){
+  if(!m5(['dep-amount','dep-frais'])) return;
   const date=document.getElementById('dep-date').value;
   if(!date){alert('Sélectionnez une date.');return;}
   const d2=new Date(date);
@@ -949,6 +1426,7 @@ function addDepense(){
   document.getElementById('dep-sug').innerHTML=[...new Set(DATA.depenses.map(d=>d.label))].map(l=>`<option value="${l}">`).join('');
 }
 function addRevenu(){
+  if(!m5(['rev-amount'])) return;
   const date=document.getElementById('rev-date').value;
   if(!date){alert('Sélectionnez une date.');return;}
   const d2=new Date(date);
@@ -1000,6 +1478,7 @@ function clearAllHistory(){
   DATA.depenses=[];
   DATA.revenus=[];
   DATA.transferts=[];
+  DATA.ajustements=[];
   saveData(); renderHistory();
 }
 function renderHistory(){
@@ -1010,7 +1489,8 @@ function renderHistory(){
   let all=[
     ...DATA.depenses.map(d=>({...d,type:'dep'})),
     ...DATA.revenus.map(d=>({...d,type:'rev'})),
-    ...DATA.transferts.map(t=>({...t,type:'tr',cat:'Transfert wallet',wallet:t.from}))
+    ...DATA.transferts.map(t=>({...t,type:'tr',cat:'Transfert wallet',wallet:t.from})),
+    ...DATA.ajustements.map(a=>({...a,type:'aj',cat:'Ajustement'}))
   ].sort((a,b)=>b.date<a.date?-1:1);
   if(srch) all=all.filter(d=>d.label.toLowerCase().includes(srch)||d.cat.toLowerCase().includes(srch));
   if(fltM!=='') all=all.filter(d=>d.month===+fltM);
@@ -1023,16 +1503,17 @@ function renderHistory(){
   const rows=all.map(d=>{
     const isTr=d.type==='tr';
     const walletDisplay=isTr?`${WALLETS[d.from]||'💼'} ${d.from} → ${WALLETS[d.to]||'💼'} ${d.to}`:`${WALLETS[d.wallet]||'💼'} ${d.wallet||'—'}`;
-    const montantDisplay=isTr?`🔄 ${fmt(d.amount)} F`:d.type==='dep'?`- ${fmt(d.amount)} F`:`+ ${fmt(d.amount)} F`;
-    const montantColor=isTr?'color:var(--text-muted);':d.type==='dep'?'color:var(--danger);':'color:var(--success);';
-    const badgeClass=isTr?'badge-blue':d.type==='dep'?'badge-red':'badge-green';
-    const deleteBtn=isTr?`<button class="btn btn-danger btn-sm" onclick="deleteTransfert(${d.id})">✕</button>`:`<button class="btn btn-danger btn-sm" onclick="deleteEntry('${d.type}',${d.id})">✕</button>`;
+    const isAj=d.type==='aj';
+    const montantDisplay=isAj?`⚖️ ${d.amount>=0?'+':'−'} ${fmt(Math.abs(d.amount))} F`:isTr?`🔄 ${fmt(d.amount)} F`:d.type==='dep'?`- ${fmt(d.amount)} F`:`+ ${fmt(d.amount)} F`;
+    const montantColor=isAj?(d.amount>=0?'color:var(--success);':'color:var(--danger);'):isTr?'color:var(--text-muted);':d.type==='dep'?'color:var(--danger);':'color:var(--success);';
+    const badgeClass=(isTr||isAj)?'badge-blue':d.type==='dep'?'badge-red':'badge-green';
+    const deleteBtn=isAj?`<button class="btn btn-danger btn-sm" onclick="deleteAjust(${d.id})">✕</button>`:isTr?`<button class="btn btn-danger btn-sm" onclick="deleteTransfert(${d.id})">✕</button>`:`<button class="btn btn-danger btn-sm" onclick="deleteEntry('${d.type}',${d.id})">✕</button>`;
     return `<tr>
       <td>${d.date||'-'}</td><td>${MONTHS[d.month]} ${d.year}</td><td>${d.label}</td>
       <td><span class="badge ${badgeClass}">${d.cat}</span></td>
       <td style="font-size:12px;">${walletDisplay}</td>
       <td class="text-right font-mono" style="font-weight:500;${montantColor}">${montantDisplay}</td>
-      <td>${deleteBtn}</td>
+      <td style="white-space:nowrap;">${isAj?'':`<button class="btn btn-secondary btn-sm" onclick="editOp('${d.type}',${d.id})" title="Modifier">✏️</button> `}${deleteBtn}</td>
     </tr>`;
   }).join('');
   document.getElementById('history-table').innerHTML=`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Période</th><th>Libellé</th><th>Catégorie</th><th>Wallet</th><th class="text-right">Montant</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -1177,7 +1658,7 @@ function copierBudgetPrecedent(){
 }
 function setBudget(key,cat,val){
   if(!DATA.budgets[key]) DATA.budgets[key]={};
-  DATA.budgets[key][cat]=+val||0;
+  DATA.budgets[key][cat]=Math.round((+val||0)/5)*5;
   saveData();
 }
 
@@ -1198,6 +1679,7 @@ function showGoalForm(){
 }
 function hideGoalForm(){document.getElementById('goal-form-card').style.display='none';editGoalId=null;}
 function saveGoal(){
+  if(!m5(['g-amount','g-saved'])) return;
   const name=document.getElementById('g-name').value.trim();
   const amount=+document.getElementById('g-amount').value;
   const deadline=document.getElementById('g-date').value;
@@ -1248,6 +1730,7 @@ function alimenterGoal(id){
 }
 function hideAlim(){document.getElementById('alim-modal').style.display='none';alimGoalId=null;}
 function confirmerAlim(){
+  if(!m5(['alim-amount','alim-frais'])) return;
   const g=DATA.goals.find(g=>g.id===alimGoalId); if(!g) return;
   const v=+document.getElementById('alim-amount').value;
   if(!v||v<=0){alert('Saisissez un montant.');return;}
@@ -1259,6 +1742,7 @@ function confirmerAlim(){
   const depId=DATA.nextId++;
   const dep={id:depId,date:t.date,month:t.month,year:t.year,label:(ratt?'Épargne (rattrapage) – ':'Épargne – ')+g.name,amount:v,cat:'Épargne',wallet,goalId:g.id};
   if(ratt) dep.rattrapage=true;
+  if(g.wallet) dep.creditWallet=g.wallet;
   DATA.depenses.push(dep);
   addFrais(Math.max(0,+document.getElementById('alim-frais').value||0),wallet,dep.label,date,{fraisDe:depId});
   if(!ratt){
@@ -1301,6 +1785,7 @@ function toggleRetraitMode(){
   if(m==='transfert') updateRetrFrais();
 }
 function confirmerRetrait(){
+  if(!m5(['retr-amount','retr-frais'])) return;
   const g=DATA.goals.find(g=>g.id===retraitGoalId); if(!g) return;
   const v=+document.getElementById('retr-amount').value;
   if(!v||v<=0){alert('Saisissez un montant.');return;}
@@ -1326,6 +1811,11 @@ function confirmerRetrait(){
   saveData(); hideRetrait(); renderGoals();
 }
 function deleteGoal(id){
+  const g0=DATA.goals.find(g=>g.id===id);
+  if(g0&&g0.wallet){
+    const held=(epargneParObjectif(g0.wallet)[id])||0;
+    if(held>0){alert('Cet objectif détient encore '+fmt(held)+' F gardés dans '+g0.wallet+'. Retire d\'abord cette épargne (bouton « Retirer »), puis supprime l\'objectif.');return;}
+  }
   if(!confirm('Supprimer cet objectif ?')) return;
   DATA.goals=DATA.goals.filter(g=>g.id!==id);
   saveData(); renderGoals();
@@ -1386,8 +1876,14 @@ function renderGoals(){
 }
 
 // ---- DETTES ----
+function fillDetteWalletSelect(val){
+  const sel=document.getElementById('d-wallet');
+  sel.innerHTML='<option value="">— Non suivi dans un wallet —</option>'+walletNames().map(w=>`<option value="${w}">${WALLETS[w]} ${w}</option>`).join('');
+  sel.value=val||'';
+}
 function showDetteForm(){
   editDetteId=null;
+  fillDetteWalletSelect('');
   document.getElementById('dette-form-title').textContent='Nouvelle dette';
   ['d-crea','d-motif','d-montant','d-echeance'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('d-remb').value='0';
@@ -1396,19 +1892,22 @@ function showDetteForm(){
 }
 function hideDetteForm(){document.getElementById('dette-form-card').style.display='none';editDetteId=null;}
 function saveDette(){
+  if(!m5(['d-montant','d-remb'])) return;
   const creancier=document.getElementById('d-crea').value.trim();
   const motif=document.getElementById('d-motif').value.trim();
   const montant=+document.getElementById('d-montant').value;
   const rembourse=+document.getElementById('d-remb').value||0;
   const echeance=document.getElementById('d-echeance').value;
   const date=document.getElementById('d-date').value;
+  const wallet=document.getElementById('d-wallet').value;
   const old=editDetteId!==null?DATA.dettes.find(d=>d.id===editDetteId):null;
+  if(wallet&&rembourse>0){alert('Si l\'argent a été reçu dans un wallet, mets « Déjà remboursé » à 0 et enregistre chaque remboursement avec « Payer une tranche ».');return;}
   if(!creancier||!montant||(!echeance&&!(old&&old.tranche))){alert('Remplissez créancier, montant et date d\'échéance.');return;}
   const tranche=echeance?detteTranche({montant,rembourse,echeance,tranche:0}):old.tranche;
   if(old){
-    Object.assign(old,{creancier,motif,montant,rembourse,tranche,date,echeance});
+    Object.assign(old,{creancier,motif,montant,rembourse,tranche,date,echeance,wallet});
   } else {
-    DATA.dettes.push({id:DATA.nextId++,creancier,motif,montant,rembourse,tranche,date,echeance});
+    DATA.dettes.push({id:DATA.nextId++,creancier,motif,montant,rembourse,tranche,date,echeance,wallet});
   }
   saveData(); hideDetteForm(); renderDettes();
 }
@@ -1422,6 +1921,7 @@ function editDette(id){
   document.getElementById('d-remb').value=d.rembourse||0;
   document.getElementById('d-echeance').value=d.echeance||'';
   document.getElementById('d-date').value=d.date||'';
+  fillDetteWalletSelect(d.wallet);
   document.getElementById('dette-form-card').style.display='block';
 }
 function showPayer(id){
@@ -1441,6 +1941,7 @@ function updatePayerFrais(){
   if(!payerFraisManuel) document.getElementById('payer-frais').value=(wallet==='Wave'&&amount>0)?arrondi5(amount*TAUX_FRAIS):'';
 }
 function confirmerPaiement(){
+  if(!m5(['payer-montant','payer-frais'])) return;
   const v=+document.getElementById('payer-montant').value;
   if(!v||v<=0) return;
   const d=DATA.dettes.find(d=>d.id===payDetteId); if(!d) return;
@@ -1461,7 +1962,15 @@ function confirmerPaiement(){
   saveData(); hidePayer(); renderDettes();
 }
 function deleteDette(id){
-  if(!confirm('Supprimer cette dette ?')) return;
+  const d0=DATA.dettes.find(d=>d.id===id);
+  const remb=d0?DATA.depenses.filter(x=>x.detteId===id):[];
+  if(d0&&d0.wallet){
+    const tot=remb.reduce((s,x)=>s+x.amount,0);
+    if(!confirm('Cette dette a crédité '+fmt(d0.montant)+' F sur '+d0.wallet+'. La supprimer retire ce crédit'+(remb.length?' ainsi que ses '+remb.length+' remboursement(s) déjà enregistrés ('+fmt(tot)+' F)':'')+'. Continuer ?')) return;
+    remb.forEach(x=>annulerEmpietement(x.id));
+    const ids=remb.map(x=>x.id);
+    DATA.depenses=DATA.depenses.filter(x=>!ids.includes(x.id)&&!ids.includes(x.fraisDe));
+  } else if(!confirm('Supprimer cette dette ?')) return;
   DATA.dettes=DATA.dettes.filter(d=>d.id!==id);
   saveData(); renderDettes();
 }
@@ -1485,6 +1994,7 @@ function renderDettes(){
         <div>
           <div style="font-weight:600;font-size:14px;">🤝 ${d.creancier} ${sold?'<span style="background:var(--success-light);color:var(--success);font-size:11px;padding:2px 8px;border-radius:10px;">✓ Soldée</span>':''}</div>
           ${d.motif?`<div style="font-size:12px;color:var(--text-muted);">${d.motif}</div>`:''}
+          ${d.wallet?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">💰 Reçu dans ${WALLETS[d.wallet]||'💼'} ${d.wallet}</div>`:''}
           <div style="font-size:12px;color:var(--text-muted);margin-top:3px;">Tranche : <strong>${fmt(trancheC)} F/mois</strong>${!sold&&dateSolde?(d.echeance?' — Échéance : <strong>'+dateSolde+'</strong>':' — Soldée en : <strong>'+dateSolde+'</strong> ('+mois+' mois)'):''}</div>
         </div>
         <div style="text-align:right;white-space:nowrap;">
@@ -1516,19 +2026,62 @@ function renderDettes(){
 
 // ---- ANNUEL ----
 function renderAnnual(){
-  const year=+document.getElementById('ann-year').value;
-  const monthly=MONTHS.map((_,m)=>DATA.depenses.filter(d=>d.year===year&&d.month===m).reduce((s,d)=>s+d.amount,0));
-  const monthlyR=MONTHS.map((_,m)=>DATA.revenus.filter(d=>d.year===year&&d.month===m).reduce((s,d)=>s+d.amount,0));
+  const sel=document.getElementById('ann-year');
+  const cur=sel.value||String(new Date().getFullYear());
+  const yMax=Math.max(2027,new Date().getFullYear()+1);
+  if(sel.options.length!==yMax-2024+1){ sel.innerHTML=Array.from({length:yMax-2024+1},(_,i)=>`<option value="${2024+i}">${2024+i}</option>`).join(''); }
+  sel.value=cur;
+  const year=+sel.value;
+  const estVersement=d=>d.goalId&&!d.retrait;                      // versement sur un objectif d'épargne
+  const depYear=DATA.depenses.filter(d=>d.year===year);
+  const depReel=depYear.filter(d=>!estVersement(d));               // vraies dépenses
+  const versements=depYear.filter(estVersement).reduce((s,d)=>s+d.amount,0);
+  const inYear=i=>i>=year*12&&i<=year*12+11;
+  const libere=epargneLiberee(inYear);
+  const epNette=versements-libere;
+  const monthlyDep=MONTHS.map((_,m)=>depReel.filter(d=>d.month===m).reduce((s,d)=>s+d.amount,0));
+  const monthlyRev=MONTHS.map((_,m)=>DATA.revenus.filter(d=>d.year===year&&d.month===m).reduce((s,d)=>s+d.amount,0));
+  const monthlyEp=MONTHS.map((_,m)=>depYear.filter(d=>d.month===m&&estVersement(d)).reduce((s,d)=>s+d.amount,0)-epargneLiberee(i=>i===year*12+m));
   if(chartAnnual) chartAnnual.destroy();
-  chartAnnual=new Chart(document.getElementById('chart-annual'),{type:'bar',data:{labels:MONTHS_S,datasets:[{label:'Dépenses',data:monthly,backgroundColor:'#F09595'},{label:'Entrées',data:monthlyR,backgroundColor:'#9FE1CB'}]},options:{responsive:true,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}},scales:{y:{ticks:{callback:v=>fmt(v)+'F'}}}}});
+  chartAnnual=new Chart(document.getElementById('chart-annual'),{type:'bar',data:{labels:MONTHS_S,datasets:[{label:'Dépenses',data:monthlyDep,backgroundColor:'#F09595'},{label:'Entrées',data:monthlyRev,backgroundColor:'#9FE1CB'},{label:'Épargne objectifs (net)',data:monthlyEp,backgroundColor:'#85B7EB'}]},options:{responsive:true,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}},scales:{y:{ticks:{callback:v=>fmt(v)+'F'}}}}});
+  // Bilan de l'année
+  const entrees=monthlyRev.reduce((a,b)=>a+b,0), depTot=monthlyDep.reduce((a,b)=>a+b,0);
+  const emprunts=(DATA.dettes||[]).filter(d=>d.wallet&&inYear(idxDate(d.date))).reduce((s,d)=>s+d.montant,0);
+  const prets=(DATA.creances||[]).filter(c=>c.wallet&&inYear(idxDate(c.date))).reduce((s,c)=>s+c.montant,0);
+  const encaisse=(DATA.creances||[]).reduce((s,c)=>s+(c.encaissements||[]).filter(e=>inYear(e.year*12+e.month)).reduce((x,e)=>x+e.amount,0),0);
+  const ajust=(DATA.ajustements||[]).filter(a=>inYear(a.year*12+a.month)).reduce((s,a)=>s+a.amount,0);
+  const solde=entrees-depTot-epNette+emprunts-prets+encaisse+ajust;
+  const ligne=(l,v,signe,bold)=>`<tr style="${bold?'font-weight:600;':''}"><td>${l}</td><td class="text-right font-mono ${signe==='+'?'text-success':signe==='-'?'text-danger':''}">${signe==='+'?'+ ':signe==='-'?'− ':''}${fmt(Math.abs(v))} F</td></tr>`;
+  document.getElementById('annual-summary').innerHTML=`<div class="table-wrap"><table><tbody>
+    ${ligne('Entrées',entrees,'+')}
+    ${ligne('Dépenses (hors épargne objectifs)',depTot,'-')}
+    ${ligne('Épargne objectifs (versements − retraits)',epNette,epNette>=0?'-':'+')}
+    ${emprunts?ligne('Argent emprunté reçu',emprunts,'+'):''}
+    ${prets?ligne('Argent prêté',prets,'-'):''}
+    ${encaisse?ligne('Prêts encaissés',encaisse,'+'):''}
+    ${ajust?ligne('Ajustements de solde',ajust,ajust>=0?'+':'-'):''}
+    ${ligne('Solde de l\'année',solde,solde>=0?'+':'-',true)}
+  </tbody></table></div>`;
   const ct={};
-  allCats().forEach(cat=>{const t=DATA.depenses.filter(d=>d.year===year&&d.cat===cat).reduce((s,d)=>s+d.amount,0);if(t>0)ct[cat]=t;});
+  allCats().forEach(cat=>{const t=depReel.filter(d=>d.cat===cat).reduce((s,d)=>s+d.amount,0);if(t>0)ct[cat]=t;});
   const sorted=Object.entries(ct).sort((a,b)=>b[1]-a[1]);
   const grand=sorted.reduce((s,e)=>s+e[1],0);
   document.getElementById('annual-table').innerHTML=sorted.length?`<div class="table-wrap"><table><thead><tr><th>Catégorie</th><th class="text-right">Total annuel</th><th class="text-right">%</th></tr></thead><tbody>${sorted.map(([c,t])=>`<tr><td>${c}</td><td class="text-right font-mono">${fmt(t)} F</td><td class="text-right">${grand?Math.round(t/grand*100):0}%</td></tr>`).join('')}<tr style="font-weight:600;"><td>TOTAL</td><td class="text-right font-mono">${fmt(grand)} F</td><td class="text-right">100%</td></tr></tbody></table></div>`:'<div class="empty"><div class="empty-icon">📅</div>Aucune dépense pour cette année</div>';
 }
 
 // ---- EXPORT / IMPORT ----
+async function partagerSauvegarde(){
+  const nom='mon_budget_'+new Date().toISOString().split('T')[0]+'.json';
+  try{
+    const file=new File([JSON.stringify(DATA,null,2)],nom,{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'Sauvegarde Mon Budget'});
+      DATA.settings.lastExport=new Date().toISOString(); saveData(); renderBackupReminder();
+      return;
+    }
+  }catch(e){ if(e&&e.name==='AbortError') return; }
+  exportData(); renderBackupReminder();
+}
 function exportData(){
   DATA.settings.lastExport=new Date().toISOString(); saveData();
   const b=new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'});
@@ -1550,6 +2103,8 @@ function importData(e){
       if(!DATA.customCats) DATA.customCats=[];
       if(!DATA.hiddenCats) DATA.hiddenCats=[];
       if(!DATA.customWallets) DATA.customWallets=[];
+      if(!DATA.ajustements) DATA.ajustements=[];
+      if(!DATA.creances) DATA.creances=[];
       syncWallets(); fillWalletSelects();
       saveData(); renderDashboard(); alert('Import réussi !');
     }catch(err){alert('Fichier invalide : '+err.message);}
@@ -1594,7 +2149,7 @@ function showSettings(){
   sel.value=(DATA.settings&&DATA.settings.religion)||'ek';
   document.getElementById('set-religion-preview').innerHTML=goalIcon('Séminaire religieux',32);
   document.getElementById('app-build').textContent='Version de l\'app : build '+APP_BUILD;
-  renderWalletSettings();
+  renderWalletSettings(); renderPinSettings();
   document.getElementById('settings-modal').style.display='flex';
 }
 function hideSettings(){document.getElementById('settings-modal').style.display='none';}
@@ -1642,8 +2197,9 @@ document.addEventListener('DOMContentLoaded',function(){
   fillCatSelect();
   fillWalletSelects();
   renderDashboard();
+  if(pinEnabled()) lockApp();
 });
-const APP_BUILD='2026.10.28-2';
+const APP_BUILD='2026.10.31-1';
 async function verifierMiseAJour(){
   try{
     const r=await fetch('./index.html?v='+Date.now(),{cache:'no-store'});
@@ -1667,6 +2223,29 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
   });
 }
 </script>
+<div id="lock-screen" style="display:none;position:fixed;inset:0;z-index:2000;background:var(--bg);align-items:center;justify-content:center;padding:1.5rem;overflow-y:auto;">
+  <div style="width:320px;max-width:100%;text-align:center;">
+    <div style="font-size:42px;">🔒</div>
+    <h2 style="margin:.5rem 0 1rem;font-size:20px;">Mon Budget</h2>
+    <div id="lock-main">
+      <input type="password" id="lock-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="Code PIN" style="text-align:center;font-size:24px;letter-spacing:8px;" onkeydown="if(event.key==='Enter')tryUnlock()">
+      <div id="lock-msg" style="min-height:20px;font-size:13px;color:var(--danger);margin:8px 0;"></div>
+      <button class="btn btn-primary" style="width:100%;" onclick="tryUnlock()">Déverrouiller</button>
+      <div style="margin-top:14px;"><a href="#" onclick="showForgot();return false;" style="font-size:13px;color:var(--text-muted);">PIN oublié ?</a></div>
+    </div>
+    <div id="lock-forgot" style="display:none;text-align:left;font-size:13px;">
+      <p style="margin-bottom:8px;"><strong>Avec ton code de secours</strong> (noté quand tu as créé le PIN) : tu choisis un nouveau PIN et tes données sont conservées.</p>
+      <input type="text" id="forgot-code" autocomplete="off" placeholder="Code de secours" style="text-transform:uppercase;margin-bottom:6px;">
+      <input type="password" id="forgot-new" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="Nouveau PIN (4 à 6 chiffres)" style="margin-bottom:6px;">
+      <div id="forgot-msg" style="min-height:18px;color:var(--danger);margin-bottom:6px;"></div>
+      <button class="btn btn-primary" style="width:100%;" onclick="resetPinWithCode()">Réinitialiser le PIN</button>
+      <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);">
+      <p style="margin-bottom:6px;color:var(--text-muted);">Plus de code de secours ? La seule solution est d'effacer les données de l'app, puis d'importer ta dernière sauvegarde (.json).</p>
+      <a href="#" onclick="eraseAll();return false;" style="color:var(--danger);">Effacer toutes les données et réinitialiser</a>
+      <div style="margin-top:12px;"><a href="#" onclick="hideForgot();return false;" style="color:var(--text-muted);">← Retour</a></div>
+    </div>
+  </div>
+</div>
 <div id="update-banner" style="display:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:1000;align-items:center;gap:10px;background:var(--primary-dark);color:#fff;padding:10px 14px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.3);font-size:13px;max-width:92vw;">
   <span>🔄 Nouvelle version disponible</span>
   <button onclick="appliquerMiseAJour()" style="background:#fff;color:var(--primary-dark);border:none;border-radius:8px;padding:6px 10px;font-weight:600;cursor:pointer;">Mettre à jour</button>
